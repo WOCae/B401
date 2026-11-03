@@ -1,0 +1,48 @@
+{
+ "templates": [
+  {
+   "id": "first",
+   "name": "はじめてのステージ",
+   "description": "穴・トゲ・敵・コインが一通りそろった基本のステージ。まずはこれを遊んで、変えてみましょう。",
+   "file": "first.json",
+   "tags": []
+  },
+  {
+   "id": "blank",
+   "name": "空のステージ",
+   "description": "地面とゴールだけ。「✎ ステージ編集」で自由にタイルを置いて作れます。",
+   "file": "blank.json",
+   "tags": []
+  },
+  {
+   "id": "coins",
+   "name": "コインあつめ",
+   "description": "空中の足場にコインがいっぱい。ジャンプで全部集めるステージ。敵やトゲはありません。",
+   "file": "coins.json",
+   "tags": []
+  },
+  {
+   "id": "spikes",
+   "name": "トゲとジャンプ",
+   "description": "トゲと広めの穴が続く、ジャンプの練習向けステージ。夜の雰囲気。",
+   "file": "spikes.json",
+   "tags": []
+  },
+  {
+   "id": "enemies",
+   "name": "敵だらけ",
+   "description": "敵がたくさん。上から踏んで倒しながら進みます。",
+   "file": "enemies.json",
+   "tags": []
+  },
+  {
+   "id": "3d",
+   "name": "3Dで見せる",
+   "description": "最初から3D表示。奥行きのある足場と階段で、カメラの見え方を試せます。",
+   "file": "3d.json",
+   "tags": [
+    "3D"
+   ]
+  }
+ ]
+}

@@ -17,6 +17,7 @@
   <div class="tgroup seg" role="group" aria-label="表示モード"><button id="mode2d">2D</button><button id="mode3d">3D</button></div>
   <label class="chk"><input type="checkbox" id="showHit"> ヒットボックス表示</label>
   <span class="spacer"></span>
+  <button id="helpBtn" title="使い方を見る">使い方</button>
   <span id="authState" class="mute"></span><button id="authBtn" class="server-only">ログイン</button>
   <button id="themeBtn" title="ダーク/ライトを切り替え">テーマ</button>
 </header>
@@ -75,6 +76,26 @@
   </aside>
 </div>
 </div>
+<dialog id="tplDlg" class="wide" aria-labelledby="tplTitleH">
+  <h2 id="tplTitleH">新しいゲームを作る</h2>
+  <p class="mute">テンプレートを選んでください。あとから自由に変更できます。</p>
+  <div id="tplGrid" class="tplgrid"></div>
+  <label class="tplname">ゲームの名前 <input type="text" id="tplTitle" maxlength="60" autocomplete="off"></label>
+  <div class="bar"><button type="button" class="pri" id="tplOk">作る</button><button type="button" id="tplCancel">キャンセル</button></div>
+</dialog>
+<dialog id="helpDlg" class="wide" aria-labelledby="helpH">
+  <h2 id="helpH">ようこそ</h2>
+  <p>横スクロールのアクションゲーム(プラットフォーマー)を作って、その場で遊べるツールです。作ったゲームは<b>このブラウザに自動保存</b>されます。</p>
+  <div class="steps">
+    <div class="step"><b>1. 遊ぶ</b><p><kbd>←</kbd><kbd>→</kbd> または <kbd>A</kbd><kbd>D</kbd> で移動、<kbd>Space</kbd> <kbd>↑</kbd> <kbd>W</kbd> でジャンプ。コインを集めて旗(ゴール)へ。敵は上から踏むと倒せます。「▶ リスタート」でやり直し。</p></div>
+    <div class="step"><b>2. 作る</b><p>左の一覧で「プレイヤー」「敵」「タイル」などを選ぶと、右に設定が出ます(スライダーは即反映)。「✎ ステージ編集」で、クリックしてマップを描けます。「AI提案」で難しさの調整もできます。</p></div>
+    <div class="step"><b>3. 残す・渡す</b><p>「保存」でファイル(使ったGLBも含む)に書き出せます。ほかの人は「開く」か、画面へドラッグ&ドロップで読み込み。「▶ 遊ぶ画面」は遊ぶ専用ページです。</p></div>
+  </div>
+  <details><summary>ショートカット</summary>
+    <p class="mute"><kbd>Ctrl</kbd>+<kbd>S</kbd> ファイルに保存 / ステージ編集中: <kbd>1</kbd>〜<kbd>7</kbd> ブラシ、<kbd>B</kbd> 鉛筆、<kbd>R</kbd> 長方形、<kbd>F</kbd> 塗りつぶし、右クリック 消しゴム、<kbd>Esc</kbd> 終了</p></details>
+  <p class="mute">ブラウザのデータを消すと自動保存も消えます。大事なゲームは「保存」でファイルにも残しておくと安心です。</p>
+  <div class="bar"><button type="button" class="pri" id="helpTpl">テンプレートから新しく作る</button><button type="button" id="helpClose" autofocus>このまま始める</button></div>
+</dialog>
 <dialog id="loginDlg" aria-labelledby="loginTitle">
   <form method="dialog" id="loginForm">
     <h2 id="loginTitle">ログイン</h2>

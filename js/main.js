@@ -13,6 +13,7 @@ import { bindInput } from "./input.js";
 import { SUGGESTION_GROUPS } from "./suggest.js";
 import { initAssets, modelPathsOf } from "./assets.js";
 import { StageEditor } from "./stageeditor.js";
+import { drawThumb } from "./thumb.js";
 import { buildInspector, initHierarchy, initTabs, initTheme, initFit } from "./editor.js";
 
 const $ = id => document.getElementById(id);
@@ -312,13 +313,57 @@ async function openGame(id) {
   if (assetsUI) await assetsUI.refresh();
 }
 $("gameSel").onchange = e => openGame(e.target.value).catch(fail);
-$("newGame").onclick = async () => { // 初期ステージの新しいゲーム
-  const title = prompt("新しいゲームの名前", "新しいゲーム"); if (title === null) return;
+/* ---------- テンプレートから新規作成 / 使い方ガイド ---------- */
+let tplCache = null;
+async function loadTemplates() { // templates/index.json の一覧を、スキーマ検証して読み込む(壊れたものは除外)
+  if (tplCache) return tplCache;
+  const idx = await (await fetch("templates/index.json")).json(), list = [];
+  for (const t of idx.templates) {
+    try {
+      const v = validateGame(await (await fetch("templates/" + t.file)).json(), app.schema);
+      if (v.ok) list.push({ ...t, game: v.game });
+    } catch { /* 1つ読めなくても他は使える */ }
+  }
+  return (tplCache = list);
+}
+let tplPick = 0, tplTitleEdited = false;
+function pickTemplate(i) {
+  tplPick = i;
+  document.querySelectorAll("#tplGrid .tpl").forEach((el, k) => { el.classList.toggle("sel", k === i); el.setAttribute("aria-pressed", k === i); });
+  if (!tplTitleEdited) $("tplTitle").value = tplCache[i].name;
+}
+async function openTemplates() {
+  let list;
+  try { list = await loadTemplates(); } catch { list = []; }
+  if (!list.length) { // テンプレートを読めないときは、初期ステージで作る
+    list = tplCache = [{ id: "first", name: "新しいゲーム", description: "初期ステージ", game: validateGame(app.schema.defaultGame, app.schema).game }];
+  }
+  const grid = $("tplGrid"); grid.innerHTML = ""; tplTitleEdited = false;
+  list.forEach((t, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "tpl"; b.dataset.id = t.id;
+    b.innerHTML = '<canvas width="192"></canvas><span class="tt"></span><span class="mute"></span>';
+    b.querySelector(".tt").textContent = t.name + ((t.tags || []).includes("3D") ? "  [3D]" : "");
+    b.lastChild.textContent = t.description;
+    drawThumb(b.querySelector("canvas"), t.game);
+    b.onclick = () => pickTemplate(i); b.ondblclick = () => $("tplOk").click();
+    grid.appendChild(b);
+  });
+  pickTemplate(0); $("tplDlg").showModal();
+}
+$("tplTitle").oninput = () => { tplTitleEdited = true; };
+$("tplCancel").onclick = () => $("tplDlg").close();
+$("tplOk").onclick = async () => {
+  const t = tplCache[tplPick]; if (!t) return;
   try {
-    const g = JSON.parse(JSON.stringify(app.schema.defaultGame)); g.meta.title = title.trim().slice(0, 60) || g.meta.title;
-    const r = await api.createGame(genId(), g); await refreshGames(r.game_id); await openGame(r.game_id);
+    const g = JSON.parse(JSON.stringify(t.game)); g.meta.title = $("tplTitle").value.trim().slice(0, 60) || t.name;
+    const r = await api.createGame(genId(), g); $("tplDlg").close();
+    await refreshGames(r.game_id); await openGame(r.game_id); say(`「${g.meta.title}」を作りました`);
   } catch (e) { fail(e); }
 };
+$("newGame").onclick = () => openTemplates().catch(fail);
+$("helpBtn").onclick = () => $("helpDlg").showModal();
+$("helpClose").onclick = () => $("helpDlg").close();
+$("helpTpl").onclick = () => { $("helpDlg").close(); openTemplates().catch(fail); };
 $("dupGame").onclick = async () => { // 複製(GLBも一緒に)。プロジェクトの書き出し→読み込みと同じ経路
   try {
     const out = await exportProject(api, app.gameId), id = await importProject(api, await out.blob.text());
@@ -416,7 +461,7 @@ function loop(ts) {
     const first = games.some(g => g.game_id === want) ? want : games[0].game_id;
     await refreshGames(first);
     await openGame(first);
-    if (MODE === "local" && !lsGet("introSeen")) { lsSet("introSeen", "1"); say("作業はこのブラウザに自動保存されます。「保存」でファイルにも書き出せます(バックアップ・共有用)", "info", 9000); }
+    if (MODE === "local" && !lsGet("introSeen")) { lsSet("introSeen", "1"); $("helpDlg").showModal(); } // 初回だけ使い方ガイドを出す(「使い方」ボタンでいつでも再表示)
     requestAnimationFrame(t => { last = t; loop(t); });
   } catch (e) {
     fail(e);

@@ -116,3 +116,16 @@ dialog input[type=password]{width:100%;padding:8px}
 #authState.edit{color:var(--ok)}#authState.view{color:var(--warn)}
 .local-mode .server-only,.server-mode .local-only{display:none!important}
 #backupState{margin-left:6px;white-space:nowrap}
+dialog.wide{width:min(780px,94vw);max-height:92vh;overflow:auto}
+.tplgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:10px 0}
+.tpl{display:flex;flex-direction:column;gap:4px;text-align:left;padding:8px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;cursor:pointer}
+.tpl:hover{border-color:var(--acc)}
+.tpl.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,var(--panel2))}
+.tpl canvas{width:100%;height:auto;display:block;border-radius:4px;background:#000;image-rendering:pixelated}
+.tpl .tt{display:flex;gap:6px;align-items:center;font-weight:700}
+.tpl .mute{line-height:1.4}
+.tplname{display:flex;gap:8px;align-items:center;margin:6px 0}.tplname input{flex:1}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
+.step{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.step p{margin:4px 0 0;font-size:12px}
+kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--bg)}

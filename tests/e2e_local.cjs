@@ -21,13 +21,18 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   const gid = await p.inputValue('#gameSel');
   check('auto-created', /^g-[0-9a-f]{8}$/.test(gid) && await opts() === 1, gid);
   check('local-label', (await p.textContent('#authState')) === '自動保存(このブラウザ内)' && !(await p.locator('#authBtn').isVisible()), await p.textContent('#authState'));
-  check('intro', (await p.textContent('#status')).includes('自動保存'), await p.textContent('#status'));
+  // 初回は使い方ガイドが開く(1回だけ)。閉じられ、再読み込みしても出ない。「使い方」ボタンで再表示できる
+  check('welcome-open', await p.evaluate(() => document.getElementById('helpDlg').open) && (await p.textContent('#helpDlg')).includes('自動保存'), 'ガイドが開かない');
+  await p.screenshot({ path: OUT + '/local_welcome.png' });
+  await p.click('#helpClose'); check('welcome-close', !(await p.evaluate(() => document.getElementById('helpDlg').open)));
   check('backup-unsaved', (await p.textContent('#backupState')).includes('未保存'), await p.textContent('#backupState'));
 
   // 1) スライダー → 再読み込みしても残る(IndexedDB)/ 元に戻す
   await tab('json'); await sel('world');
   await p.locator('#c_physics_gravity').fill('1000'); await p.dispatchEvent('#c_physics_gravity', 'change'); await p.waitForTimeout(700);
   await p.reload(); await p.waitForSelector('#gameSel option', { state: 'attached' }); await p.waitForTimeout(900); await tab('json');
+  check('welcome-once', !(await p.evaluate(() => document.getElementById('helpDlg').open)), '再読み込みでガイドがまた開いた');
+  await p.click('#helpBtn'); check('help-btn', await p.evaluate(() => document.getElementById('helpDlg').open)); await p.click('#helpClose');
   check('persist', (await J()).physics.gravity === 1000 && (await p.inputValue('#gameSel')) === gid, (await J()).physics.gravity);
   // (fill が change を2回出すので履歴は2つできる: 2回戻すと初期状態)
   await p.click('#undo'); await p.waitForTimeout(400); await p.click('#undo'); await p.waitForTimeout(500); check('undo', (await J()).physics.gravity === 1800, (await J()).physics.gravity);
@@ -71,8 +76,21 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   await p.click('#dupGame'); await p.waitForTimeout(1500);
   const dupId = await p.inputValue('#gameSel'); await tab('assets');
   check('dup', dupId !== gid && (await opts()) === 2 && (await p.locator('#assetList > .asset').count()) === 1 && (await p.locator('#assetList .tag', { hasText: '使用中' }).count()) >= 1, [dupId, await opts()]);
-  await p.click('#newGame'); await p.waitForTimeout(1000); check('new', (await opts()) === 3 && (await p.textContent('#diag')) !== undefined, await opts());
-  await tab('json'); check('new-title', (await J()).meta.title === 'テスト用ゲーム', (await J()).meta.title);
+  // 新規 = テンプレート選択ダイアログ(サムネイル付き)。選んだテンプレートのステージで作られる
+  await p.click('#newGame'); await p.waitForSelector('#tplDlg[open]'); await p.waitForTimeout(500);
+  const cards = await p.locator('#tplGrid .tpl').count(); out.templates = cards;
+  const thumbs = await p.evaluate(() => [...document.querySelectorAll('#tplGrid canvas')].map(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]); return seen.size; }));
+  check('tpl-cards', cards >= 5 && thumbs.every(n => n >= 2), [cards, thumbs]);
+  await p.screenshot({ path: OUT + '/local_templates.png' });
+  check('tpl-default-title', (await p.inputValue('#tplTitle')) === 'はじめてのステージ', await p.inputValue('#tplTitle'));
+  await p.click('#tplGrid .tpl[data-id="spikes"]'); check('tpl-title-follows', (await p.inputValue('#tplTitle')) === 'トゲとジャンプ', await p.inputValue('#tplTitle'));
+  await p.fill('#tplTitle', 'テスト用ゲーム'); await p.click('#tplGrid .tpl[data-id="3d"]'); check('tpl-title-kept', (await p.inputValue('#tplTitle')) === 'テスト用ゲーム', '編集したタイトルが上書きされた');
+  await p.click('#tplOk'); await p.waitForTimeout(1200);
+  await tab('json'); const ng = await J(); const tpl3d = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', '3d.json'), 'utf8'));
+  check('new', (await opts()) === 3 && ng.meta.title === 'テスト用ゲーム' && JSON.stringify(ng.level) === JSON.stringify(tpl3d.level) && ng.render.mode === '3d', [await opts(), ng.meta.title]);
+  await p.waitForTimeout(1500); await p.locator('.stage').screenshot({ path: OUT + '/local_tpl3d.png' });
+  await p.click('#newGame'); await p.waitForSelector('#tplDlg[open]'); await p.click('#tplCancel'); check('tpl-cancel', (await opts()) === 3 && !(await p.evaluate(() => document.getElementById('tplDlg').open)));
+  await p.click('#helpBtn'); await p.click('#helpTpl'); await p.waitForSelector('#tplDlg[open]'); check('help-to-tpl', !(await p.evaluate(() => document.getElementById('helpDlg').open))); await p.click('#tplCancel');
   await p.click('#delGame'); await p.waitForTimeout(1000); check('delete', (await opts()) === 2, await opts());
 
   // 8) ファイルを開く(新しいゲームとして追加。GLB同梱)
