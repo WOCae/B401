@@ -10,11 +10,12 @@ import { drawHud } from "./hud.js";
 import { bindInput } from "./input.js";
 import { SUGGESTION_GROUPS } from "./suggest.js";
 import { initAssets, modelPathsOf } from "./assets.js";
+import { StageEditor } from "./stageeditor.js";
 import { buildInspector, initHierarchy, initTabs, initTheme, initFit } from "./editor.js";
 
 const $ = id => document.getElementById(id);
 const app = { schema: null, gameId: null, version: 0, game: null, engine: null, proposal: null, assets: null, assetVersions: {} };
-let assetsUI = null, modelSig = "", openTab = () => {};
+let assetsUI = null, modelSig = "", openTab = () => {}, editor = null;
 const keys = { l: 0, r: 0, j: 0, jp: false };
 const ctx = $("cv").getContext("2d");
 
@@ -41,6 +42,7 @@ function setGame(raw, { restart = true, version } = {}) {
   syncUI();
   const ms = modelPathsOf(app.game);
   if (ms !== modelSig) { modelSig = ms; if (assetsUI) assetsUI.refresh(); }
+  if (editor) editor.sync(); // ステージ編集中に他の経路(元に戻す・JSON・提案)で変わったら取り込む
   return v;
 }
 
@@ -143,6 +145,16 @@ function commitGame(game, label, { restart }) {
 function warnAssets(warnings = []) { // サーバーが調べたモデルの有無・GLBヘッダの警告
   const w = warnings.filter(x => x.code.startsWith("asset_") || x.code === "bad_format");
   if (w.length) say(w.map(x => x.message).join(" / "), "err", 9000);
+}
+/** ステージ編集の1ストローク=1つの履歴。保存時の最新ゲームにレベルだけを差し替えて送る */
+function commitLevel(rows, label) {
+  return serial(async () => {
+    try {
+      const g = clone(app.game); g.level = rows;
+      const r = await api.saveGame(app.gameId, g, app.version, label);
+      setGame(r.game, { restart: true, version: r.version });
+    } catch (e) { fail(e); await reload(true).catch(() => {}); }
+  });
 }
 async function reload(restart = true) {
   const r = await api.getGame(app.gameId);
@@ -267,6 +279,11 @@ let last = 0, acc = 0;
 function loop(ts) {
   try {
     const dt = (ts - last) / 1000; last = ts;
+    if (editor && editor.active) { // ステージ編集中: ゲームは止め、2Dで自由視点・グリッド付きに描く
+      setViewMode(false);
+      draw2d(ctx, editor.engineFor(), editor.viewOpts()); editor.drawHud(hud);
+      requestAnimationFrame(loop); return;
+    }
     acc = advance(app.engine, acc, dt, keys);
     const want3d = app.game.render.mode === "3d";
     if (want3d) ensure3d();
@@ -288,6 +305,13 @@ function loop(ts) {
     app.schema = await api.getSchema();
     for (const { el, fields } of buildInspector(app.schema)) buildControls(el, fields); // 対象ごとのインスペクタ(スキーマから自動生成)
     initHierarchy(); openTab = initTabs(); initTheme(); initFit();
+    editor = new StageEditor({
+      getGame: () => app.game, commitLevel, say, schema: app.schema, $,
+      onToggle: on => { $("editBtn").classList.toggle("on", on); $("stage").classList.toggle("editing", on); if (on) { openTab("stage"); acc = 0; } else app.engine.restart(); },
+    });
+    editor.attach($("stage")); editor.buildPalette($("stagePalette"));
+    if (location.search.includes("debug")) window.__editor = editor; // テスト用
+    $("editBtn").onclick = () => (editor.active ? editor.exit() : editor.enter());
     assetsUI = initAssets({
       api, $, esc, getGameId: () => app.gameId, getGame: () => app.game,
       commit: (g, label) => commitGame(g, label, { restart: false }), say, fail,

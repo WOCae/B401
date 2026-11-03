@@ -1,0 +1,28 @@
+// ステージ編集の純粋関数のテスト
+import { pad, setTile, paint, rectCells, lineCells, fill, resize } from "../js/level.js";
+let pass = 0, fail = 0;
+const eq = (name, a, b) => { const ok = JSON.stringify(a) === JSON.stringify(b); (ok ? pass++ : fail++); console.log((ok ? "  ok  " : "  NG  ") + name + (ok ? "" : `\n     got ${JSON.stringify(a)}\n     exp ${JSON.stringify(b)}`)); };
+const L = ["....", ".P..", "####"];
+eq("pad: 足りない行を空きで埋める", pad(["P", "...", "#"]), ["P..", "...", "#.."]);
+eq("setTile: ブロックを置く", setTile(L, 0, 0, "#").rows[0], "#...");
+eq("setTile: 範囲外は何もしない", setTile(L, 9, 0, "#").changed, false);
+eq("setTile: 同じ記号は変更なし", setTile(L, 0, 2, "#").changed, false);
+eq("setTile: Pは消しゴムで消せない", setTile(L, 1, 1, ".").rows, L);
+eq("setTile: Pを別の場所に置くと移動(1個だけ)", setTile(L, 3, 0, "P").rows, ["...P", "....", "####"]);
+eq("paint: 複数マス", paint(L, [[0, 0], [1, 0]], "o").rows[0], "oo..");
+eq("paint: P上をまたいでも壊れない", paint(L, [[0, 1], [1, 1], [2, 1]], "E").rows[1], "EPE.");
+eq("rectCells: 対角の順序に依存しない", rectCells([2, 1], [0, 0]).length, 6);
+eq("lineCells: 斜めでも隙間なし", lineCells([0, 0], [4, 2]).length, 5);
+eq("lineCells: 同じ点", lineCells([1, 1], [1, 1]), [[1, 1]]);
+eq("fill: 空きを塗りつぶす(Pは保護)", fill(["...", ".P.", "..."], 0, 0, "o").rows, ["ooo", "oPo", "ooo"]);
+eq("fill: 壁で区切られた領域だけ", fill(["..#..", "..#.."], 0, 0, "o").rows, ["oo#..", "oo#.."]);
+eq("fill: Pの上は塗れない", fill(L, 1, 1, "#").changed, false);
+eq("fill: Pで塗るのは不可", fill(L, 0, 0, "P").changed, false);
+eq("resize: 右に2列追加", resize(L, { right: 2 }).rows[0], "......");
+eq("resize: 上に1行追加", resize(L, { top: 1 }).rows.length, 4);
+eq("resize: 左を1列削る(Pの列)→ Pが消えるのでエラー", !!resize(["P.", ".."], { left: -1 }).error, true);
+eq("resize: 下の1行を削る", resize(L, { bottom: -1 }).rows, ["....", ".P.."]);
+eq("resize: 1x1より小さくできない", !!resize(["P"], { right: -1 }).error, true);
+eq("resize: 上限超えはエラー", !!resize(L, { right: 500 }).error, true);
+eq("resize: 引数は書き換えない", L, ["....", ".P..", "####"]);
+console.log(`\n${pass} 件成功 / ${fail} 件失敗`); process.exit(fail ? 1 : 0);

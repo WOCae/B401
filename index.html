@@ -12,7 +12,7 @@
 <header class="toolbar">
   <div class="brand">プラットフォーマー作成ツール</div>
   <div class="tgroup"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame" title="今のゲームを複製して新規作成">＋ 新規</button></div>
-  <div class="tgroup"><button id="restart" class="pri" title="最初からやり直す">▶ リスタート</button><button id="undo" title="1つ前の状態に戻す">↶ 元に戻す</button></div>
+  <div class="tgroup"><button id="editBtn" title="タイルをクリックして配置するステージ編集(Esc で終了)">✎ ステージ編集</button><button id="restart" class="pri" title="最初からやり直す">▶ リスタート</button><button id="undo" title="1つ前の状態に戻す">↶ 元に戻す</button></div>
   <div class="tgroup seg" role="group" aria-label="表示モード"><button id="mode2d">2D</button><button id="mode3d">3D</button></div>
   <label class="chk"><input type="checkbox" id="showHit"> ヒットボックス表示</label>
   <span class="spacer"></span>
@@ -39,11 +39,13 @@
 
     <section class="dock" aria-label="ドック">
       <div class="tabs" role="tablist">
+        <button role="tab" data-tab="stage" id="t_stage">ステージ</button>
         <button role="tab" data-tab="assets" id="t_assets">アセット</button>
         <button role="tab" data-tab="ai" id="t_ai">AI提案</button>
         <button role="tab" data-tab="json" id="t_json">JSON</button>
         <button role="tab" data-tab="diag" id="t_diag">診断</button>
       </div>
+      <div class="tabpanel" id="tab_stage" role="tabpanel"><div id="stagePalette"></div></div>
       <div class="tabpanel" id="tab_assets" role="tabpanel">
         <div class="bar"><input type="file" id="assetFile" accept=".glb,model/gltf-binary"><button id="assetUp" class="pri">アップロード</button></div>
         <div id="assetMsg" class="mute" role="status"></div>

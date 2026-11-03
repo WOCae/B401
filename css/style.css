@@ -98,3 +98,13 @@ ul.diff{margin:6px 0;padding-left:18px}
 details{margin:4px 0}summary{cursor:pointer;font-weight:600}
 [data-showall] .tabpanel{display:block}
 [data-showall] #inspBody > section[hidden]{display:block}
+#editBtn.on{background:color-mix(in srgb,var(--warn) 30%,var(--panel2));border-color:var(--warn)}
+.brushes{display:flex;flex-wrap:wrap;gap:4px}
+.brush{display:flex;align-items:center;gap:6px;padding:3px 8px}
+.brush .sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.35)}
+.brush.on,.tgroup.seg button.on{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.szgrp{display:inline-flex;gap:2px;align-items:center;color:var(--mute)}
+.szgrp button{padding:0 8px}
+#stagePalette.idle .brush.on{background:var(--panel2);border-color:var(--acc);color:var(--ink)}
+#stagePalette input[type=range]{width:140px;accent-color:var(--acc)}
+.stage.editing{outline:2px solid var(--warn);outline-offset:-2px;cursor:crosshair}
