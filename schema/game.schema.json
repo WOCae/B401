@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "tileSize": 32,
+  "level": { "maxRows": 60, "maxCols": 400, "requiredTiles": ["P"] },
+  "tiles": {
+    ".": { "name": "空" },
+    "#": { "name": "地面/ブロック", "solid": true },
+    "^": { "name": "トゲ" },
+    "o": { "name": "コイン" },
+    "E": { "name": "歩く敵" },
+    "G": { "name": "ゴール" },
+    "P": { "name": "開始位置" }
+  },
+  "fields": [
+    { "path": "meta.title", "type": "string", "label": "タイトル", "default": "はじめてのステージ", "maxLength": 60 },
+    { "path": "physics.gravity", "type": "number", "label": "重力", "min": 800, "max": 3200, "step": 50, "default": 1800, "slider": true },
+    { "path": "physics.moveSpeed", "type": "number", "label": "移動速度", "min": 100, "max": 360, "step": 5, "default": 200, "slider": true },
+    { "path": "physics.jumpVelocity", "type": "number", "label": "ジャンプ力", "min": 300, "max": 900, "step": 10, "default": 620, "slider": true },
+    { "path": "physics.accel", "type": "number", "label": "加速の鋭さ", "min": 4, "max": 30, "step": 1, "default": 14, "slider": true },
+    { "path": "physics.coyoteTime", "type": "number", "label": "コヨーテタイム(秒)", "min": 0, "max": 0.25, "step": 0.01, "default": 0.08, "slider": true },
+    { "path": "physics.jumpBuffer", "type": "number", "label": "ジャンプ先行入力(秒)", "min": 0, "max": 0.25, "step": 0.01, "default": 0.1, "slider": true },
+    { "path": "enemy.speed", "type": "number", "label": "敵の速度", "min": 0, "max": 150, "step": 5, "default": 50, "slider": true },
+    { "path": "theme.sky", "type": "color", "label": "空の色", "default": "#bfe3ff" },
+    { "path": "theme.ground", "type": "color", "label": "地面の色", "default": "#6b4a2b" },
+    { "path": "theme.player", "type": "color", "label": "プレイヤーの色", "default": "#e4572e" }
+  ],
+  "defaultGame": {
+    "meta": { "title": "はじめてのステージ" },
+    "physics": { "gravity": 1800, "moveSpeed": 200, "jumpVelocity": 620, "accel": 14, "coyoteTime": 0.08, "jumpBuffer": 0.1 },
+    "enemy": { "speed": 50 },
+    "theme": { "sky": "#bfe3ff", "ground": "#6b4a2b", "player": "#e4572e" },
+    "level": [
+      "........................................",
+      "........................................",
+      "........................................",
+      "........................................",
+      "..............ooo..........ooo..........",
+      "........................................",
+      "...........####.........#####...........",
+      "........................................",
+      "..........o......o..............o.......",
+      ".P.........o....E.o...E..o....^^......G.",
+      "##########..##############...###########",
+      "##########..##############...###########"
+    ]
+  }
+}

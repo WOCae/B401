@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>プラットフォーマー作成ツール</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+<h1>プラットフォーマー作成ツール</h1>
+<p>ゲームはJSONで持ち、スライダー・AI提案・JSON直接編集のどれからでも同じデータを調整できます。</p>
+<div class="bar"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame">新規ゲーム</button></div>
+<div id="status" role="status"></div>
+</header>
+<main>
+<section>
+<canvas id="cv" width="640" height="384"></canvas>
+<div class="pad">
+<button id="bl">◀</button><button id="bj">ジャンプ</button><button id="br">▶</button>
+</div>
+<p class="mute">キーボード: ← → / A D で移動、Space / ↑ / W でジャンプ。コインを集めて旗を目指します。敵は上から踏むと倒せます。</p>
+</section>
+<section>
+<div class="card">
+<h2>パラメータ調整(即時反映)</h2>
+<div id="sliders"></div>
+<div class="bar"><button id="restart">リスタート</button><button id="undo">元に戻す</button></div>
+</div>
+<div class="card">
+<h2>難易度の診断</h2>
+<div id="diag"></div>
+</div>
+<div class="card">
+<h2>AIの調整提案</h2>
+<div class="bar" id="sugbtn"></div>
+<div id="prop" style="margin-top:6px"></div>
+<p class="mute">デモ用のルールベース提案です。提案はJSON差分としてサーバーに保存され、承認するまでゲームは変わりません。</p>
+</div>
+<div class="card">
+<h2>ゲーム定義JSON</h2>
+<textarea id="json" spellcheck="false"></textarea>
+<div class="bar"><button id="applyjson" class="pri">JSONを適用</button><span id="jmsg" class="mute"></span></div>
+</div>
+</section>
+</main>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

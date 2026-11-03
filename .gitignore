@@ -1,0 +1,5 @@
+games/*
+!games/.htaccess
+!games/.gitkeep
+node_modules/
+*.tmp

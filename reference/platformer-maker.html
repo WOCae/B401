@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>プラットフォーマー作成ツール(プロトタイプ)</title>
+<style>
+:root{--bg:#eef1f5;--panel:#fff;--ink:#16202c;--mute:#5d6b7c;--line:#d5dbe3;--acc:#2457d6;--ok:#14803f;--warn:#b84a12;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151c;--panel:#18202a;--ink:#e6ebf1;--mute:#8d9aab;--line:#2c3744;--acc:#6b93ff;--ok:#4cc785;--warn:#ff9a5c}}
+:root[data-theme="dark"]{--bg:#10151c;--panel:#18202a;--ink:#e6ebf1;--mute:#8d9aab;--line:#2c3744;--acc:#6b93ff;--ok:#4cc785;--warn:#ff9a5c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif}
+header{max-width:1120px;margin:0 auto;padding:14px 16px 0}
+h1{font-size:18px;margin:0}
+header p{margin:2px 0 0;color:var(--mute);font-size:13px}
+main{max-width:1120px;margin:0 auto;padding:12px 16px 24px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:840px){main{grid-template-columns:minmax(0,1fr)}}
+canvas{width:100%;height:auto;display:block;border-radius:8px;border:1px solid var(--line);touch-action:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+h2{font-size:14px;margin:0 0 8px}
+.row{display:grid;grid-template-columns:10.5em minmax(0,1fr) 3.6em;gap:8px;align-items:center;margin:2px 0}
+.row output{text-align:right;font-variant-numeric:tabular-nums}
+.row input{width:100%}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pad{display:flex;gap:8px;margin-top:8px}
+.pad button{flex:1;padding:14px 0;font-size:16px;user-select:none;-webkit-user-select:none;touch-action:none}
+textarea{width:100%;box-sizing:border-box;height:170px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.mute{color:var(--mute);font-size:12px}
+ul.diff{margin:6px 0;padding-left:18px}
+</style>
+</head>
+<body>
+<header>
+<h1>プラットフォーマー作成ツール(プロトタイプ)</h1>
+<p>ゲームはJSONで持ち、スライダー・AI提案・JSON直接編集のどれからでも同じデータを調整できます。</p>
+</header>
+<main>
+<section>
+<canvas id="cv" width="640" height="384"></canvas>
+<div class="pad">
+<button id="bl">◀</button><button id="bj">ジャンプ</button><button id="br">▶</button>
+</div>
+<p class="mute">キーボード: ← → / A D で移動、Space / ↑ / W でジャンプ。コインを集めて旗を目指します。敵は上から踏むと倒せます。</p>
+</section>
+<section>
+<div class="card">
+<h2>パラメータ調整(即時反映)</h2>
+<div id="sliders"></div>
+<div class="bar"><button id="restart">リスタート</button><button id="undo">元に戻す</button></div>
+</div>
+<div class="card">
+<h2>難易度の診断</h2>
+<div id="diag"></div>
+</div>
+<div class="card">
+<h2>AIの調整提案</h2>
+<div class="bar" id="sugbtn"></div>
+<div id="prop" style="margin-top:6px"></div>
+<p class="mute">デモ用のルールベース提案です。本番ではここでLLMがJSON差分を返し、検証してから承認式で適用します。</p>
+</div>
+<div class="card">
+<h2>ゲーム定義JSON</h2>
+<textarea id="json" spellcheck="false"></textarea>
+<div class="bar"><button id="applyjson" class="pri">JSONを適用</button><span id="jmsg" class="mute"></span></div>
+</div>
+</section>
+</main>
+<script>
+const T=32,VW=640,VH=384;
+const DEF={
+ meta:{title:"はじめてのステージ"},
+ physics:{gravity:1800,moveSpeed:200,jumpVelocity:620,accel:14,coyoteTime:0.08,jumpBuffer:0.1},
+ enemy:{speed:50},
+ theme:{sky:"#bfe3ff",ground:"#6b4a2b",player:"#e4572e"},
+ level:[
+ "........................................",
+ "........................................",
+ "........................................",
+ "........................................",
+ "..............ooo..........ooo..........",
+ "........................................",
+ "...........####.........#####...........",
+ "........................................",
+ "..........o......o..............o.......",
+ ".P.........o....E.o...E..o....^^......G.",
+ "##########..##############...###########",
+ "##########..##############...###########"
+ ]
+};
+const PARAMS=[
+ ["physics","gravity","重力",800,3200,50],
+ ["physics","moveSpeed","移動速度",100,360,5],
+ ["physics","jumpVelocity","ジャンプ力",300,900,10],
+ ["physics","accel","加速の鋭さ",4,30,1],
+ ["physics","coyoteTime","コヨーテタイム(秒)",0,0.25,0.01],
+ ["physics","jumpBuffer","ジャンプ先行入力(秒)",0,0.25,0.01],
+ ["enemy","speed","敵の速度",0,150,5]
+];
+const clone=o=>JSON.parse(JSON.stringify(o));
+const $=id=>document.getElementById(id);
+const ctx=$("cv").getContext("2d");
+let G=clone(DEF),grid,W,H,S,hist=[],keys={l:0,r:0,j:0,jp:false},prop=null;
+
+function reset(full){
+ const d=full||!S?0:S.deaths;
+ H=G.level.length;W=Math.max(...G.level.map(r=>r.length));
+ grid=G.level.map(r=>r.padEnd(W,".").split(""));
+ S={p:{x:0,y:0,w:22,h:28,vx:0,vy:0,on:false,coy:0,buf:0},en:[],got:{},coins:0,total:0,deaths:d,t:0,won:false,sx:0,sy:0};
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const c=grid[y][x];
+  if(c=="P"){S.sx=x*T+5;S.sy=(y+1)*T-28}
+  if(c=="E")S.en.push({x:x*T+4,y:(y+1)*T-24,w:24,h:24,d:-1,alive:true});
+  if(c=="o")S.total++;
+ }
+ S.p.x=S.sx;S.p.y=S.sy;
+}
+function die(){const d=S.deaths+1;reset(false);S.deaths=d}
+const solid=(tx,ty)=>tx<0||tx>=W?true:(ty<0||ty>=H?false:grid[ty][tx]=="#");
+function hit(x,y,w,h){
+ for(let ty=Math.floor(y/T);ty<=Math.floor((y+h-.01)/T);ty++)
+  for(let tx=Math.floor(x/T);tx<=Math.floor((x+w-.01)/T);tx++)if(solid(tx,ty))return true;
+ return false;
+}
+function step(dt){
+ if(S.won)return;
+ S.t+=dt;
+ const p=S.p,ph=G.physics;
+ p.vx+=((keys.r-keys.l)*ph.moveSpeed-p.vx)*Math.min(1,ph.accel*dt);
+ p.coy=p.on?ph.coyoteTime:p.coy-dt;
+ p.buf=keys.jp?ph.jumpBuffer:p.buf-dt;keys.jp=false;
+ if(p.buf>0&&p.coy>0){p.vy=-ph.jumpVelocity;p.buf=0;p.coy=0;p.on=false}
+ p.vy+=ph.gravity*dt*((!keys.j&&p.vy<0)?2:1);
+ p.vy=Math.min(p.vy,900);
+ p.x+=p.vx*dt;
+ if(hit(p.x,p.y,p.w,p.h)){
+  if(p.vx>0)p.x=Math.floor((p.x+p.w)/T)*T-p.w-.01;else p.x=(Math.floor(p.x/T)+1)*T+.01;
+  p.vx=0;
+ }
+ p.y+=p.vy*dt;p.on=false;
+ if(hit(p.x,p.y,p.w,p.h)){
+  if(p.vy>0){p.y=Math.floor((p.y+p.h)/T)*T-p.h-.01;p.on=true}
+  else p.y=(Math.floor(p.y/T)+1)*T+.01;
+  p.vy=0;
+ }
+ const cx=Math.floor((p.x+p.w/2)/T),cy=Math.floor((p.y+p.h/2)/T);
+ const c=(grid[cy]||[])[cx],k=cx+","+cy;
+ if(c=="o"&&!S.got[k]){S.got[k]=1;S.coins++}
+ if(c=="^")return die();
+ if(c=="G")S.won=true;
+ if(p.y>H*T+60)return die();
+ for(const e of S.en){
+  if(!e.alive)continue;
+  const nx=e.x+e.d*G.enemy.speed*dt,ah=e.d>0?nx+e.w:nx;
+  const tx=Math.floor(ah/T),ty=Math.floor((e.y+e.h-1)/T);
+  if(solid(tx,ty)||!solid(tx,ty+1))e.d*=-1;else e.x=nx;
+  if(p.x<e.x+e.w&&p.x+p.w>e.x&&p.y<e.y+e.h&&p.y+p.h>e.y){
+   if(p.vy>0&&p.y+p.h-e.y<16){e.alive=false;p.vy=-ph.jumpVelocity*.6}else return die();
+  }
+ }
+}
+function draw(){
+ const c=ctx,th=G.theme,p=S.p;
+ c.fillStyle=th.sky;c.fillRect(0,0,VW,VH);
+ const cam=Math.round(Math.max(0,Math.min(W*T-VW,p.x+p.w/2-VW/2)));
+ c.save();c.translate(-cam,VH-H*T);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const t=grid[y][x],px=x*T,py=y*T;
+  if(t=="#"){c.fillStyle=th.ground;c.fillRect(px,py,T,T);if(!solid(x,y-1)){c.fillStyle="#4fa34f";c.fillRect(px,py,T,6)}}
+  else if(t=="^"){c.fillStyle="#4a4f57";c.beginPath();c.moveTo(px,py+T);c.lineTo(px+T/2,py+6);c.lineTo(px+T,py+T);c.fill()}
+  else if(t=="o"&&!S.got[x+","+y]){c.fillStyle="#f5b800";c.beginPath();c.arc(px+T/2,py+T/2,8,0,7);c.fill()}
+  else if(t=="G"){c.fillStyle="#555";c.fillRect(px+13,py-T,4,2*T);c.fillStyle="#d9342b";c.beginPath();c.moveTo(px+17,py-T);c.lineTo(px+T+4,py-T+10);c.lineTo(px+17,py-T+20);c.fill()}
+ }
+ for(const e of S.en)if(e.alive){c.fillStyle="#7a3fb0";c.fillRect(e.x,e.y,e.w,e.h);c.fillStyle="#fff";c.fillRect(e.x+5,e.y+6,5,5);c.fillRect(e.x+14,e.y+6,5,5)}
+ c.fillStyle=th.player;c.fillRect(p.x,p.y,p.w,p.h);
+ c.fillStyle="#fff";c.fillRect(p.x+(p.vx<-5?3:13),p.y+6,6,6);
+ c.restore();
+ c.fillStyle="rgba(0,0,0,.55)";c.fillRect(8,8,236,24);
+ c.fillStyle="#fff";c.font="14px sans-serif";
+ c.fillText("コイン "+S.coins+"/"+S.total+"   ミス "+S.deaths+"   "+S.t.toFixed(1)+"秒",16,25);
+ if(S.won){c.fillStyle="rgba(0,0,0,.6)";c.fillRect(0,VH/2-40,VW,80);c.fillStyle="#fff";c.font="bold 24px sans-serif";c.textAlign="center";c.fillText("クリア! "+S.t.toFixed(1)+"秒 / ミス "+S.deaths,VW/2,VH/2+8);c.textAlign="left"}
+}
+let last=0,acc=0;
+function loop(ts){
+ acc+=Math.min(.1,(ts-last)/1000);last=ts;
+ while(acc>=1/60){step(1/60);acc-=1/60}
+ draw();requestAnimationFrame(loop);
+}
+
+/* ダッシュボード */
+const sl=$("sliders");
+PARAMS.forEach(([g,k,label,min,max,st])=>{
+ const r=document.createElement("div");r.className="row";
+ r.innerHTML=`<label for="s_${g}_${k}">${label}</label><input type="range" id="s_${g}_${k}" min="${min}" max="${max}" step="${st}"><output id="o_${g}_${k}"></output>`;
+ sl.appendChild(r);
+ const inp=r.querySelector("input");
+ inp.addEventListener("input",()=>{G[g][k]=+inp.value;$(`o_${g}_${k}`).textContent=inp.value;diag();syncJson()});
+ inp.addEventListener("change",()=>{commit();inp.blur()});
+});
+function syncUI(){
+ PARAMS.forEach(([g,k])=>{$(`s_${g}_${k}`).value=G[g][k];$(`o_${g}_${k}`).textContent=G[g][k]});
+ diag();syncJson();
+}
+function syncJson(){if(document.activeElement!==$("json"))$("json").value=JSON.stringify(G,null,1)}
+function commit(){hist.push(JSON.stringify(G));if(hist.length>50)hist.shift()}
+function setDef(d,rst){G=d;if(rst)reset(true);syncUI()}
+function diag(){
+ const ph=G.physics,jh=ph.jumpVelocity**2/(2*ph.gravity)/T,jd=ph.moveSpeed*(2*ph.jumpVelocity/ph.gravity)/T;
+ let max=0,run=0;
+ for(let x=0;x<W;x++){let has=false;for(let y=Math.max(0,H-2);y<H;y++)if(grid[y][x]=="#")has=true;run=has?0:run+1;max=Math.max(max,run)}
+ const ok=max*T<=jd*T-8;
+ $("diag").innerHTML=`<div>ジャンプの高さ: 約${jh.toFixed(1)}タイル / 距離: 約${jd.toFixed(1)}タイル</div>
+ <div>ステージ内で最も広い穴: ${max}タイル</div>
+ <div class="${ok?"ok":"warn"}">${ok?"✓ すべての穴を飛び越せる見込みです。":"⚠ 穴がジャンプ距離を超えています。クリアできない可能性があります。"}</div>
+ <div class="mute">計算上の目安です。AI生成ステージはこの検証に通るまで再生成します。</div>`;
+}
+$("restart").onclick=()=>reset(true);
+$("undo").onclick=()=>{if(hist.length>1){hist.pop();setDef(JSON.parse(hist[hist.length-1]),true)}};
+
+/* JSON検証と適用 */
+function validate(d){
+ const o=clone(DEF);
+ for(const [g,k,,min,max] of PARAMS){const v=d&&d[g]&&d[g][k];if(typeof v=="number"&&isFinite(v))o[g][k]=Math.min(max,Math.max(min,v))}
+ if(!Array.isArray(d.level)||!d.level.length||!d.level.every(r=>typeof r=="string"))throw Error("level は文字列の配列にしてください");
+ if(!d.level.join("").includes("P"))throw Error("プレイヤーの開始位置 P がありません");
+ o.level=d.level;
+ if(d.theme)Object.assign(o.theme,d.theme);
+ if(d.meta&&d.meta.title)o.meta.title=String(d.meta.title);
+ return o;
+}
+$("applyjson").onclick=()=>{
+ try{setDef(validate(JSON.parse($("json").value)),true);commit();$("jmsg").textContent="適用しました(範囲外の値は丸めています)";$("jmsg").className="mute"}
+ catch(e){$("jmsg").textContent="エラー: "+e.message;$("jmsg").className="warn"}
+};
+
+/* AI提案(差分を見せて承認式) */
+const lab=(g,k)=>PARAMS.find(p=>p[0]==g&&p[1]==k)[2];
+const P=(g,k,f)=>({t:"p",g,k,to:+f(G[g][k]).toFixed(2)});
+const SUG={
+ "もう少し簡単に":()=>[P("physics","jumpVelocity",v=>v*1.08),P("physics","coyoteTime",v=>v+.04),P("enemy","speed",v=>v*.8)],
+ "もう少し難しく":()=>[P("physics","jumpVelocity",v=>v*.94),P("physics","coyoteTime",v=>Math.max(0,v-.03)),P("enemy","speed",v=>v*1.3+5)],
+ "敵を増やす":()=>{
+  const row=H-3,cs=[];
+  for(let x=7;x<W-4;x++)if(grid[row][x]=="."&&solid(x,row+1)&&solid(x-1,row+1)&&solid(x+1,row+1)&&!S.en.some(e=>Math.abs(e.x/T-x)<4)&&!cs.some(c=>Math.abs(c-x)<5))cs.push(x);
+  return cs.sort(()=>Math.random()-.5).slice(0,2).map(x=>({t:"c",x,y:row,to:"E"}));
+ }
+};
+Object.keys(SUG).forEach(n=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>{prop=SUG[n]();showProp(n)};$("sugbtn").appendChild(b)});
+function showProp(n){
+ const el=$("prop");
+ if(!prop||!prop.length){el.innerHTML='<span class="mute">提案できる変更が見つかりませんでした。</span>';prop=null;return}
+ el.innerHTML=`<div>「${n}」の提案:</div><ul class="diff">`+prop.map(d=>d.t=="p"?`<li>${lab(d.g,d.k)}: ${G[d.g][d.k]} → ${d.to}</li>`:`<li>${d.x+1}列目・${d.y+1}行目に敵を追加</li>`).join("")+`</ul><div class="bar"><button class="pri" id="okp">適用</button><button id="ngp">破棄</button></div>`;
+ $("okp").onclick=applyProp;$("ngp").onclick=()=>{prop=null;el.innerHTML=""};
+}
+function applyProp(){
+ const d=clone(G);let lv=false;
+ for(const x of prop){
+  if(x.t=="p"){const m=PARAMS.find(p=>p[0]==x.g&&p[1]==x.k);d[x.g][x.k]=Math.min(m[4],Math.max(m[3],x.to))}
+  else{const r=d.level[x.y].padEnd(W,".");d.level[x.y]=r.slice(0,x.x)+x.to+r.slice(x.x+1);lv=true}
+ }
+ prop=null;$("prop").innerHTML="";
+ setDef(d,lv);commit();
+}
+
+/* 入力 */
+const A=a=>a.includes;
+addEventListener("keydown",e=>{
+ if(/INPUT|TEXTAREA/.test(document.activeElement.tagName))return;
+ const k=e.code;
+ if(k=="ArrowLeft"||k=="KeyA")keys.l=1;
+ if(k=="ArrowRight"||k=="KeyD")keys.r=1;
+ if(k=="Space"||k=="ArrowUp"||k=="KeyW"){if(!keys.j)keys.jp=true;keys.j=1}
+ if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(k))e.preventDefault();
+});
+addEventListener("keyup",e=>{
+ const k=e.code;
+ if(k=="ArrowLeft"||k=="KeyA")keys.l=0;
+ if(k=="ArrowRight"||k=="KeyD")keys.r=0;
+ if(k=="Space"||k=="ArrowUp"||k=="KeyW")keys.j=0;
+});
+document.addEventListener("click",e=>{if(e.target.matches("button"))e.target.blur()});
+function hold(id,on,off){const b=$(id);b.addEventListener("pointerdown",e=>{e.preventDefault();on()});["pointerup","pointerleave","pointercancel"].forEach(t=>b.addEventListener(t,off))}
+hold("bl",()=>keys.l=1,()=>keys.l=0);
+hold("br",()=>keys.r=1,()=>keys.r=0);
+hold("bj",()=>{keys.jp=true;keys.j=1},()=>keys.j=0);
+
+reset(true);syncUI();commit();
+requestAnimationFrame(t=>{last=t;loop(t)});
+</script>
+</body>
+</html>
