@@ -10,10 +10,11 @@ import { drawHud } from "./hud.js";
 import { bindInput } from "./input.js";
 import { SUGGESTION_GROUPS } from "./suggest.js";
 import { initAssets, modelPathsOf } from "./assets.js";
+import { buildInspector, initHierarchy, initTabs, initTheme, initFit } from "./editor.js";
 
 const $ = id => document.getElementById(id);
 const app = { schema: null, gameId: null, version: 0, game: null, engine: null, proposal: null, assets: null, assetVersions: {} };
-let assetsUI = null, modelSig = "";
+let assetsUI = null, modelSig = "", openTab = () => {};
 const keys = { l: 0, r: 0, j: 0, jp: false };
 const ctx = $("cv").getContext("2d");
 
@@ -45,8 +46,6 @@ function setGame(raw, { restart = true, version } = {}) {
 
 /* ---------- パラメータ調整・表示設定(スキーマのフィールドから自動生成) ---------- */
 // group が "view" のフィールド=表示・カメラ・見た目、それ以外の slider=物理などのパラメータ
-const paramFields = () => app.schema.fields.filter(f => f.slider && !f.group);
-const viewFields = () => app.schema.fields.filter(f => f.group === "view");
 const pathGet = (g, p) => p.split(".").reduce((a, k) => a[k], g);
 const idOf = p => p.replace(/\./g, "_").replace(/#/g, "wall").replace(/\^/g, "spike");
 const setField = (path, v) => { const ks = path.split("."), last = ks.pop(); pathGet(app.game, ks.join("."))[last] = v; };
@@ -106,7 +105,14 @@ function buildControls(container, fields) {
     container.appendChild(r);
   }
 }
-function syncUI() { refreshers.forEach(fn => fn()); renderDiag(); syncJson(); }
+function syncUI() {
+  refreshers.forEach(fn => fn()); renderDiag(); syncJson();
+  const m = app.game.render.mode; $("mode2d").classList.toggle("on", m === "2d"); $("mode3d").classList.toggle("on", m === "3d");
+}
+/** 画面のどこからでも同じ経路で1項目を編集する(値を反映→サーバーに保存して履歴に残す) */
+function editField(path, value, label) { setField(path, value); syncUI(); return commitGame(app.game, label, { restart: false }); }
+$("mode2d").onclick = () => editField("render.mode", "2d", "表示モードを2Dに");
+$("mode3d").onclick = () => editField("render.mode", "3d", "表示モードを3Dに");
 function syncJson() { if (document.activeElement !== $("json")) $("json").value = JSON.stringify(app.game, null, 1); }
 function renderDiag() {
   const d = diagnose(app.game, app.schema);
@@ -247,7 +253,7 @@ function ensure3d() {
       onWarn: msg => say(msg, "err", 9000),
       onModel: ({ kind, url, clips }) => {
         $("clips_" + kind).innerHTML = clips.map(c => `<option value="${esc(c)}">`).join("");
-        $("modelinfo").textContent = (kind === "player" ? "プレイヤー" : "敵") + "のモデル " + url + " のクリップ: " + (clips.join(", ") || "なし");
+        const mi = document.getElementById("modelinfo-" + kind); if (mi) mi.textContent = url + " のクリップ: " + (clips.join(", ") || "なし");
       },
     }); view.state = "ready"; })
     .catch(e => { view.state = "failed"; say("3D表示を開始できないため2Dで表示します(" + e.message + ")", "err", 10000); });
@@ -280,12 +286,8 @@ function loop(ts) {
   try {
     bindInput(keys, $);
     app.schema = await api.getSchema();
-    buildControls($("sliders"), paramFields());
-    buildControls($("viewctl"), viewFields());
-    const modelFields = who => app.schema.fields.filter(f => f.group === "model" && f.path.startsWith("assets." + who + "."));
-    buildControls($("mc_player"), modelFields("player")); buildControls($("mc_enemy"), modelFields("enemy"));
-    buildControls($("hitctl"), app.schema.fields.filter(f => f.group === "hitbox"));
-    for (const [sym, id] of [["#", "wall"], ["^", "spike"], ["o", "coin"], ["G", "goal"]]) buildControls($("tc_" + id), app.schema.fields.filter(f => f.group === "tile" && f.path.startsWith("assets.tiles." + sym + ".")));
+    for (const { el, fields } of buildInspector(app.schema)) buildControls(el, fields); // 対象ごとのインスペクタ(スキーマから自動生成)
+    initHierarchy(); openTab = initTabs(); initTheme(); initFit();
     assetsUI = initAssets({
       api, $, esc, getGameId: () => app.gameId, getGame: () => app.game,
       commit: (g, label) => commitGame(g, label, { restart: false }), say, fail,

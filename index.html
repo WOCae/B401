@@ -4,80 +4,74 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>プラットフォーマー作成ツール</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header>
-<h1>プラットフォーマー作成ツール</h1>
-<p>ゲームはJSONで持ち、スライダー・AI提案・JSON直接編集のどれからでも同じデータを調整できます。</p>
-<div class="bar"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame">新規ゲーム</button></div>
-<div id="status" role="status"></div>
+<div id="app">
+<header class="toolbar">
+  <div class="brand">プラットフォーマー作成ツール</div>
+  <div class="tgroup"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame" title="今のゲームを複製して新規作成">＋ 新規</button></div>
+  <div class="tgroup"><button id="restart" class="pri" title="最初からやり直す">▶ リスタート</button><button id="undo" title="1つ前の状態に戻す">↶ 元に戻す</button></div>
+  <div class="tgroup seg" role="group" aria-label="表示モード"><button id="mode2d">2D</button><button id="mode3d">3D</button></div>
+  <label class="chk"><input type="checkbox" id="showHit"> ヒットボックス表示</label>
+  <span class="spacer"></span>
+  <button id="themeBtn" title="ダーク/ライトを切り替え">テーマ</button>
 </header>
-<main>
-<section>
-<div class="stage"><canvas id="cv" width="640" height="384"></canvas><canvas id="cv3" class="off" width="640" height="384"></canvas><canvas id="hud" width="640" height="384"></canvas></div>
-<div class="pad">
-<button id="bl">◀</button><button id="bj">ジャンプ</button><button id="br">▶</button>
+<div id="status" role="status"></div>
+
+<div class="workspace">
+  <nav class="hier" aria-label="ヒエラルキー">
+    <h2>ヒエラルキー</h2>
+    <div id="hierList"></div>
+  </nav>
+
+  <main class="center">
+    <div class="viewport" id="viewport">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="640" height="384"></canvas>
+        <canvas id="cv3" class="off" width="640" height="384"></canvas>
+        <canvas id="hud" width="640" height="384"></canvas>
+      </div>
+    </div>
+    <div class="pad"><button id="bl">◀</button><button id="bj">ジャンプ</button><button id="br">▶</button></div>
+    <p class="vhint mute">← → / A D で移動、Space / ↑ / W でジャンプ。コインを集めて旗を目指します。敵は上から踏むと倒せます。</p>
+
+    <section class="dock" aria-label="ドック">
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="assets" id="t_assets">アセット</button>
+        <button role="tab" data-tab="ai" id="t_ai">AI提案</button>
+        <button role="tab" data-tab="json" id="t_json">JSON</button>
+        <button role="tab" data-tab="diag" id="t_diag">診断</button>
+      </div>
+      <div class="tabpanel" id="tab_assets" role="tabpanel">
+        <div class="bar"><input type="file" id="assetFile" accept=".glb,model/gltf-binary"><button id="assetUp" class="pri">アップロード</button></div>
+        <div id="assetMsg" class="mute" role="status"></div>
+        <div id="assetList"></div>
+        <p class="mute">GLB(.glb、自己完結・圧縮なし)のみ、1ファイル5MBまで。「割り当て」でプレイヤー・敵・タイルのモデルに設定できます。使用中のファイルは削除できません。</p>
+      </div>
+      <div class="tabpanel" id="tab_ai" role="tabpanel">
+        <div id="sugbtn"></div>
+        <div id="prop" style="margin-top:8px"></div>
+        <p class="mute">デモ用のルールベース提案です。提案はJSON差分としてサーバーに保存され、「適用」を押すまでゲームは変わりません。</p>
+      </div>
+      <div class="tabpanel" id="tab_json" role="tabpanel">
+        <textarea id="json" spellcheck="false"></textarea>
+        <div class="bar"><button id="applyjson" class="pri">JSONを適用</button><span id="jmsg" class="mute"></span></div>
+      </div>
+      <div class="tabpanel" id="tab_diag" role="tabpanel">
+        <div id="diag"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="inspector" aria-label="インスペクタ">
+    <h2 id="inspTitle">インスペクタ</h2>
+    <div id="inspBody"></div>
+  </aside>
 </div>
-<p class="mute">キーボード: ← → / A D で移動、Space / ↑ / W でジャンプ。コインを集めて旗を目指します。敵は上から踏むと倒せます。</p>
-</section>
-<section>
-<div class="card">
-<h2>パラメータ調整(即時反映)</h2>
-<div id="sliders"></div>
-<div class="bar"><button id="restart">リスタート</button><button id="undo">元に戻す</button></div>
 </div>
-<div class="card">
-<h2>表示・カメラ・見た目</h2>
-<div id="viewctl"></div>
 <datalist id="modelList"></datalist><datalist id="clips_player"></datalist><datalist id="clips_enemy"></datalist>
-<p class="mute">表示モード「3D」にするとThree.jsで描画します。ゲームのロジック(物理・当たり判定)は2Dのままで、見た目だけが変わります。</p>
-</div>
-<div class="card">
-<h2>アセット管理(GLB)</h2>
-<div class="bar"><input type="file" id="assetFile" accept=".glb,model/gltf-binary"><button id="assetUp" class="pri">アップロード</button></div>
-<div id="assetMsg" class="mute" role="status"></div>
-<div id="assetList"></div>
-<p class="mute">GLB(.glb、自己完結・圧縮なし)のみ、1ファイル5MBまで。「割り当て」でプレイヤー・敵・タイルのモデルに設定できます。使用中のファイルは削除できません。</p>
-</div>
-<div class="card">
-<h2>キャラのモデル(GLB)</h2>
-<details open><summary>プレイヤー</summary><div id="mc_player"></div></details>
-<details><summary>敵</summary><div id="mc_enemy"></div></details>
-<div id="modelinfo" class="mute"></div>
-<p class="mute">モデルのパスは <code>assets/samples/player.glb</code> のように指定します(空ならプリミティブ)。スケール1=1タイル(32px)、正面は+Zです。読み込めない場合はプリミティブのまま動きます。</p>
-</div>
-<div class="card">
-<h2>タイルのモデル(GLB)</h2>
-<details><summary>ブロック(#)</summary><div id="tc_wall"></div></details>
-<details><summary>トゲ(^)</summary><div id="tc_spike"></div></details>
-<details><summary>コイン(o)</summary><div id="tc_coin"></div></details>
-<details><summary>ゴール(G)</summary><div id="tc_goal"></div></details>
-<p class="mute">タイル用モデルの原点は「タイルの下端中央」(1タイル=1単位)。見た目だけが変わり、当たり判定(ブロックは1タイルの壁)はそのままです。未指定・読み込み失敗ならプリミティブで表示します。</p>
-</div>
-<div class="card">
-<h2>ヒットボックス(当たり判定)</h2>
-<label class="chk"><input type="checkbox" id="showHit"> ヒットボックスを表示(緑=プレイヤー / 赤=敵)</label>
-<div id="hitctl"></div>
-<p class="mute">当たり判定は見た目のモデルとは独立です。ox/oy は「モデルの原点から見たヒットボックス下端中央の位置」(右・上が+)。変更するとリスタートします。</p>
-</div>
-<div class="card">
-<h2>難易度の診断</h2>
-<div id="diag"></div>
-</div>
-<div class="card">
-<h2>AIの調整提案</h2>
-<div class="bar" id="sugbtn"></div>
-<div id="prop" style="margin-top:6px"></div>
-<p class="mute">デモ用のルールベース提案です。提案はJSON差分としてサーバーに保存され、承認するまでゲームは変わりません。</p>
-</div>
-<div class="card">
-<h2>ゲーム定義JSON</h2>
-<textarea id="json" spellcheck="false"></textarea>
-<div class="bar"><button id="applyjson" class="pri">JSONを適用</button><span id="jmsg" class="mute"></span></div>
-</div>
-</section>
-</main>
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
 <script type="module" src="js/main.js"></script>
 </body>

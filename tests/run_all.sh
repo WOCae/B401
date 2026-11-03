@@ -17,6 +17,7 @@ run "エンジン等価(元プロトタイプ)"  node tests/engine_equivalence.m
 run "アップロードAPI"               node tests/api_assets.mjs
 if [ -z "${NO_E2E:-}" ]; then
   export NODE_PATH=$(npm root -g)
+  run "画面: e2e_editor(ナビゲーション・レイアウト)" bash -c "node tests/e2e_editor.cjs | grep -q '\"ok\":true' && echo ok"
   for t in e2e_dashboard e2e_3d e2e_no_webgl e2e_models e2e_broken_glb e2e_assets; do
     run "画面: $t" bash -c "node tests/$t.cjs | tee '$OUT/$t.json' | grep -q '\"errs\": *\\[\\]' || grep -q '\"errs\":\\[\\]' '$OUT/$t.json' || { echo 'コンソールエラーあり'; cat '$OUT/$t.json'; exit 1; }"
   done

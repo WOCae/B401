@@ -6,17 +6,16 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   const p = await b.newPage({ viewport: { width: 1100, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errs.push(m.text()); });
-  await p.goto(BASE + '/index.html?debug'); await p.waitForSelector('#c_render_mode'); await p.waitForTimeout(400);
+  await p.goto(BASE + '/index.html?debug&showall'); await p.waitForSelector('#c_render_mode'); await p.waitForTimeout(400);
   const out = {}; const J = async () => JSON.parse(await p.inputValue('#json'));
   const pos = () => p.evaluate(() => { const s = window.__app.engine.S; return [Math.round(s.p.x), Math.round(s.p.y)]; });
   const status = () => p.textContent('#status');
   await p.selectOption('#c_render_mode', '3d');
   // 1) モデルを指定(UIの入力欄)
   await p.fill('#c_assets_player_model', 'assets/samples/player.glb'); await p.dispatchEvent('#c_assets_player_model', 'change'); await p.waitForTimeout(300);
-  await p.locator('#mc_enemy').evaluate(el => el.closest('details').open = true);
   await p.fill('#c_assets_enemy_model', 'assets/samples/enemy.glb'); await p.dispatchEvent('#c_assets_enemy_model', 'change'); await p.waitForTimeout(1200);
   out.json = { pm: (await J()).assets.player.model, em: (await J()).assets.enemy.model };
-  out.modelinfo = await p.textContent('#modelinfo');
+  out.modelinfo = await p.textContent('#modelinfo-enemy');
   out.playerClips = await p.locator('#clips_player option').evaluateAll(o => o.map(x => x.value));
   // 2) 走る → run、ジャンプ → jump/fall のアニメーションが切り替わる
   const clip = () => p.evaluate(() => { const a = window.__view.r3d.player.cur; return a ? a.getClip().name : null; });

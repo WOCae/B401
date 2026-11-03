@@ -111,7 +111,7 @@ export class Renderer3D {
     this.loader = new GLTFLoader(); this.cache = new Map(); this.ready = new Map(); this.failed = new Set(); this.warnedMsgs = new Set();
     this.versions = {}; this.versionsJson = "{}"; this.dirty = false; this.recs = [];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); // WebGL非対応なら例外 → 呼び出し側で2Dに戻す
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(2); // ビューポートに拡大表示されるので高めに固定
     this.renderer.setSize(VW, VH, false);
     this.scene = new THREE.Scene();
     this.hemi = new THREE.HemisphereLight(0xffffff, 0xcfd3d8, 1);
