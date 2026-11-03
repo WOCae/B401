@@ -8,5 +8,6 @@ mb_internal_encoding('UTF-8');
 
 require __DIR__ . '/schema.php';
 require __DIR__ . '/storage.php';
+require __DIR__ . '/auth.php';
 require __DIR__ . '/tools.php';
 require __DIR__ . '/assets.php';

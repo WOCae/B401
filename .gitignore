@@ -4,5 +4,7 @@ games/*
 uploads/*
 !uploads/.htaccess
 !uploads/.gitkeep
+api/config.php
+api/setup.key
 node_modules/
 *.tmp

@@ -125,6 +125,33 @@ function renderDiag() {
  <div class="mute">計算上の目安です。AI生成ステージはこの検証に通るまで再生成します。</div>`;
 }
 
+/* ---------- ログイン(閲覧は公開・編集は要ログイン) ---------- */
+app.auth = { authenticated: false, configured: true, dev_open: false };
+function renderAuth() {
+  const a = app.auth, st = $("authState");
+  st.className = a.authenticated ? "edit" : "view";
+  st.textContent = a.dev_open ? "開発モード" : a.authenticated ? "編集できます" : a.configured ? "閲覧のみ" : "閲覧のみ(パスワード未設定)";
+  $("authBtn").style.display = a.dev_open ? "none" : "";
+  $("authBtn").textContent = a.authenticated ? "ログアウト" : "ログイン";
+}
+async function refreshAuth() { try { app.auth = await api.authStatus(); } catch { /* 取得できなくても閲覧はできる */ } renderAuth(); }
+function openLogin(msg) {
+  if (!app.auth.configured) { say("管理者パスワードが未設定のため編集できません。README の「認証の設定」を参照してください", "err", 10000); return; }
+  const d = $("loginDlg"); if (d.open) return;
+  $("loginErr").textContent = msg || ""; $("loginPw").value = ""; d.showModal(); $("loginPw").focus();
+}
+window.addEventListener("pm-unauthorized", () => { app.auth.authenticated = false; renderAuth(); openLogin("ログインが必要です(操作は反映されていません)"); });
+$("loginCancel").onclick = () => $("loginDlg").close();
+$("loginForm").onsubmit = async e => {
+  e.preventDefault(); $("loginOk").disabled = true; $("loginErr").textContent = "";
+  try { await api.login($("loginPw").value); $("loginPw").value = ""; $("loginDlg").close(); await refreshAuth(); if (!app.gameId) { location.reload(); return; } say("ログインしました。もう一度操作してください"); }
+  catch (err) { $("loginErr").textContent = err.message; }
+  finally { $("loginOk").disabled = false; }
+};
+$("authBtn").onclick = async () => {
+  if (app.auth.authenticated) { try { await api.logout(); } catch (e) { fail(e); } await refreshAuth(); say("ログアウトしました"); } else openLogin();
+};
+
 /* ---------- 保存・元に戻す(サーバーに履歴を残す) ---------- */
 // 書き込み系は1つずつ順番に実行する(連続操作でも版の競合が起きない)
 let chain = Promise.resolve();
@@ -302,6 +329,7 @@ function loop(ts) {
 (async () => {
   try {
     bindInput(keys, $);
+    await refreshAuth();
     app.schema = await api.getSchema();
     for (const { el, fields } of buildInspector(app.schema)) buildControls(el, fields); // 対象ごとのインスペクタ(スキーマから自動生成)
     initHierarchy(); openTab = initTabs(); initTheme(); initFit();
@@ -328,5 +356,10 @@ function loop(ts) {
     await refreshGames(games[0].game_id);
     await openGame(games[0].game_id);
     requestAnimationFrame(t => { last = t; loop(t); });
-  } catch (e) { fail(e); $("diag").innerHTML = '<span class="warn">サーバーに接続できないため開始できません。PHPが動作している環境で開いてください。</span>'; }
+  } catch (e) {
+    fail(e);
+    $("diag").innerHTML = e.code === "unauthorized" || e.code === "auth_not_configured"
+      ? '<span class="warn">ゲームがまだありません。ログインすると最初のゲームを作成します(パスワード未設定の場合は README の「認証の設定」を参照)。</span>'
+      : '<span class="warn">サーバーに接続できないため開始できません。PHPが動作している環境で開いてください。</span>';
+  }
 })();

@@ -21,9 +21,21 @@ function reply(int $status, array $body): never
 try {
     $tools = PM\registry();
     $name = (string)($_GET['tool'] ?? '');
-    if (!isset($tools[$name])) throw new ToolError('未知のツールです', 'unknown_tool', 404);
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    // 認証まわり(ツールではなくHTTPの関心事なので、レジストリの外で扱う)
+    if (in_array($name, ['auth_status', 'login', 'logout'], true)) {
+        if ($name === 'auth_status') reply(200, ['ok' => true, 'result' => PM\auth_status()]);
+        if ($method !== 'POST' || stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) throw new ToolError('POST(application/json)で呼び出してください', 'method_not_allowed', 405);
+        if ($name === 'logout') reply(200, ['ok' => true, 'result' => PM\auth_logout()]);
+        $body = json_decode((string)file_get_contents('php://input', false, null, 0, 4096), true);
+        reply(200, ['ok' => true, 'result' => PM\auth_login(is_array($body) ? ($body['password'] ?? null) : null)]);
+    }
+    if (!isset($tools[$name])) throw new ToolError('未知のツールです', 'unknown_tool', 404);
     if ($tools[$name]['write'] && $method !== 'POST') throw new ToolError('POST で呼び出してください', 'method_not_allowed', 405);
+    // 書き込み系は要ログイン(閲覧系は公開)
+    if ($tools[$name]['write'] && !PM\is_authenticated()) {
+        throw PM\auth_configured() ? new ToolError('ログインが必要です', 'unauthorized', 401) : new ToolError('管理者パスワードが未設定のため編集できません。README の「認証の設定」を参照してください', 'auth_not_configured', 403);
+    }
 
     $args = $_GET;
     unset($args['tool']);

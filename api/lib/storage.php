@@ -70,5 +70,49 @@ function commit_locked(string $id, array $game, string $label, ?int $baseVersion
     write_json(history_path($id, $v), ['version' => $v, 'parent' => $st['version'], 'ts' => $ts, 'label' => $label, 'game' => $game]);
     write_json(game_dir($id) . '/game.json', $game);
     write_json(game_dir($id) . '/state.json', ['version' => $v, 'max' => $v, 'updated' => $ts]);
+    try { prune_history($id, $v, $v); } catch (\Throwable $e) { error_log('[platformer-maker] prune: ' . $e->getMessage()); } // 掃除の失敗で保存を失敗させない
     return ['version' => $v, 'updated' => $ts];
+}
+
+/**
+ * 履歴の間引き(commit のたびに呼ぶが、上限を超えたときだけ動く)。
+ * 残すもの: 現在の版から親をたどった経路(「元に戻す」で戻れる範囲)の新しい方から keep 個、
+ *           と、番号が新しい recent 個。それ以外(古い版・放棄された枝)は削除する。
+ * 経路の一番古い版は parent=0 にして、それより前へは戻れないことを明示する。
+ * ついでに処理済み/古い提案ファイルも片付ける。
+ */
+function prune_history(string $id, int $current, int $max): void
+{
+    $H = schema_load()['history'];
+    $dir = game_dir($id) . '/history';
+    $files = glob($dir . '/*.json') ?: [];
+    if (count($files) > $H['keep'] + $H['slack']) {
+        $keep = [];
+        $v = $current;
+        $chain = [];
+        while ($v > 0 && count($chain) < $H['keep']) {
+            $p = history_path($id, $v);
+            if (!is_file($p)) break;
+            $chain[] = $v;
+            $v = (int)read_json($p)['parent'];
+        }
+        foreach ($chain as $c) $keep[$c] = true;
+        for ($r = $max; $r > $max - $H['recent'] && $r > 0; $r--) $keep[$r] = true;
+        foreach ($files as $f) {
+            $n = (int)basename($f, '.json');
+            if (!isset($keep[$n])) @unlink($f);
+        }
+        $oldest = $chain ? end($chain) : null;
+        if ($oldest !== null) {
+            $p = history_path($id, $oldest);
+            $h = read_json($p);
+            if ((int)$h['parent'] !== 0 && !isset($keep[(int)$h['parent']])) { $h['parent'] = 0; write_json($p, $h); }
+        }
+    }
+    // 提案ファイル: 処理済みは14日、未処理は3日で削除
+    foreach (glob(game_dir($id) . '/proposals/*.json') ?: [] as $f) {
+        $age = time() - (int)filemtime($f);
+        $st = (read_json($f)['status'] ?? 'pending');
+        if ($age > ($st === 'pending' ? $H['pendingProposalDays'] : $H['proposalDays']) * 86400) @unlink($f);
+    }
 }

@@ -931,5 +931,12 @@
     "maxTotalBytesPerGame": 41943040,
     "maxVertices": 300000,
     "extension": "glb"
+  },
+  "history": {
+    "keep": 200,
+    "slack": 50,
+    "recent": 20,
+    "proposalDays": 14,
+    "pendingProposalDays": 3
   }
 }

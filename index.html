@@ -16,6 +16,7 @@
   <div class="tgroup seg" role="group" aria-label="表示モード"><button id="mode2d">2D</button><button id="mode3d">3D</button></div>
   <label class="chk"><input type="checkbox" id="showHit"> ヒットボックス表示</label>
   <span class="spacer"></span>
+  <span id="authState" class="mute"></span><button id="authBtn">ログイン</button>
   <button id="themeBtn" title="ダーク/ライトを切り替え">テーマ</button>
 </header>
 <div id="status" role="status"></div>
@@ -73,6 +74,15 @@
   </aside>
 </div>
 </div>
+<dialog id="loginDlg" aria-labelledby="loginTitle">
+  <form method="dialog" id="loginForm">
+    <h2 id="loginTitle">ログイン</h2>
+    <p class="mute" id="loginHint">編集(保存・アップロード)には管理者パスワードが必要です。</p>
+    <input type="password" id="loginPw" autocomplete="current-password" placeholder="パスワード" required maxlength="200">
+    <p id="loginErr" class="warn" role="alert"></p>
+    <div class="bar"><button type="submit" class="pri" id="loginOk">ログイン</button><button type="button" id="loginCancel">キャンセル</button></div>
+  </form>
+</dialog>
 <datalist id="modelList"></datalist><datalist id="clips_player"></datalist><datalist id="clips_enemy"></datalist>
 <script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
 <script type="module" src="js/main.js"></script>

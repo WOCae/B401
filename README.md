@@ -95,11 +95,32 @@ node tests/engine_equivalence.mjs     # 新エンジン == reference のロジ�
 - ツール: `list_assets`(AIに公開可)、`upload_asset` / `delete_asset`(人のみ)。
 - 画面: 「アセット管理」でアップロード・一覧(アニメ名・頂点数・使用箇所)・割り当て(プレイヤー/敵/タイル)・差し替え・削除。差し替え後は更新時刻でキャッシュが切り替わる。
 
+## 認証の設定(公開前に必須)
+**閲覧(プレイ)は公開、編集(保存・アップロード・削除・提案など書き込み系すべて)は管理者パスワードでログインした人だけ**です。
+パスワード未設定の間は、書き込みはすべて拒否されます(閲覧のみ)。
+
+**方法A(シェルなし・FTPだけでOK)**
+1. `api/` フォルダに **`setup.key`** というファイルをアップロードする(中身は推測されにくい16文字以上の文字列)。
+2. ブラウザで `…/api/setup.php` を開き、setup.key の中身と、管理者パスワード(10文字以上)を入力。
+3. `api/config.php` ができ、`setup.key` は自動で削除される(以後 setup.php は使えない)。書き込めない環境では、表示された内容を `api/config.php` として自分でアップロードする。
+
+**方法B(シェルあり)**: `php tools/setup_auth.php`
+
+- パスワードはハッシュ(`password_hash`)のみ保存。ログインは署名つきCookie(HttpOnly・SameSite=Strict・HTTPSならSecure、既定12時間)で、DB・PHPセッションは不要。
+- パスワードを変えると(config.php を作り直すと)既存のログインはすべて無効になる。
+- ログイン試行は IP ごとに10分で5回まで。`api/config.php` / `setup.key` は `.htaccess` でHTTP取得を拒否。
+- 開発用: `PM_DEV_OPEN=1` を環境変数に付けて起動すると、**ループバック(127.0.0.1)からのときだけ**認証を省略できる(本番サーバーでは効かない)。
+- 履歴は版ごとに保存し、古いものは自動で整理する(元に戻せる範囲は最新の200版。`schema/game.schema.json` の `history`)。処理済みの提案は14日、未処理は3日で削除。
+
+### 公開後の確認
+`tools/check_deploy.mjs https://example.com/path/` を実行すると、データフォルダや設定ファイルがHTTPから見えないこと、
+アップロード先でスクリプトが動かないこと、未ログインで書き込めないことを確認できる。
+
 ### 公開時の設定
 - **Apache系**: `uploads/.htaccess` と `games/.htaccess` が効くよう `AllowOverride All`(少なくとも FileInfo, Options, AuthConfig, Limit)が必要。
 - **nginx**: `.htaccess` は効かない。`location ^~ /uploads/ { location ~ \.php$ { return 403; } }` と `location ^~ /games/ { deny all; }` を設定する。
 - **PHP**: `upload_max_filesize` と `post_max_size`(目安 6M / 8M)。`api/.user.ini` / `api/.htaccess` に例がある(レンタルサーバーによっては管理画面で設定)。
-- `games/` と `uploads/` は書き込み可にする。認証は未実装(公開前に書き込み系ツールへアクセス制御を入れること)。
+- `games/` と `uploads/` は書き込み可にする。認証は上の「認証の設定」を参照。
 
 ## タイルのモデルとAI提案(段階5)
 `assets.tiles` に `#` `^` `o` `G` ごとの設定(`model` / `color` / `scale` / `yaw` / `offsetX,Y,Z`)。未指定ならプリミティブ。
@@ -119,6 +140,7 @@ tests/run_all.sh        # 上のテストと画面テストを一括実行(NO_E2
 # 個別: node tests/e2e_dashboard.cjs / e2e_3d / e2e_no_webgl / e2e_models / e2e_broken_glb / e2e_assets   (BASE=http://... OUT=出力先)
 ```
 
-## 現状の注意
-- 認証は未実装。公開前に書き込み系ツールへアクセス制御(トークン等)を入れること。
-- 履歴は無制限に増える(間引きは未実装)。
+## 現状の制限
+- 管理者1人用(ユーザー別のゲーム所有・権限分けは未対応)。ログアウトしても、すでに発行された Cookie は期限(既定12時間)まで有効(パスワード変更で全て無効化できる)。
+- 外部のAI API は未接続(提案は規則ベース)。MCPサーバー本体も未実装(ツール関数は `api/lib/tools.php` に分離済み)。
+- 履歴の間引きで、200版より前には「元に戻す」で戻れなくなる。
