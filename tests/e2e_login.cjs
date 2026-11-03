@@ -15,7 +15,7 @@ if (!BASE || !PASSWORD) { console.error('AUTH_BASE と AUTH_PASSWORD が必要�
   check('fresh-dialog', await dlgOpen(), 'ログインダイアログが開かない');
   check('fresh-guide', (await p.textContent('#diag')).includes('ゲームがまだありません'), await p.textContent('#diag'));
   await login('wrong-password-xx'); check('wrong-pw', (await p.textContent('#loginErr')).includes('違います') && await dlgOpen(), await p.textContent('#loginErr'));
-  await login(PASSWORD); await p.waitForSelector('#gameSel option', { timeout: 8000 }); await p.waitForTimeout(800);
+  await login(PASSWORD); await p.waitForSelector('#gameSel option', { state: 'attached', timeout: 8000 }); await p.waitForTimeout(800);
   check('fresh-created', (await p.locator('#gameSel option').count()) === 1, 'demo未作成');
   out.state1 = [await p.textContent('#authState'), await p.textContent('#authBtn')]; check('state-edit', out.state1[0] === '編集できます' && out.state1[1] === 'ログアウト', out.state1);
 
@@ -38,7 +38,7 @@ if (!BASE || !PASSWORD) { console.error('AUTH_BASE と AUTH_PASSWORD が必要�
   // 2) ログイン → 編集が保存され、再読み込みしても残る
   await p.click('#authBtn'); await p.waitForTimeout(300); await login(PASSWORD);
   await p.click('#h_world'); await p.locator('#c_physics_gravity').fill('1000'); await p.dispatchEvent('#c_physics_gravity', 'change'); await p.waitForTimeout(900);
-  await p.reload(); await p.waitForSelector('#gameSel option'); await p.waitForTimeout(800); await p.click('#t_json');
+  await p.reload(); await p.waitForSelector('#gameSel option', { state: 'attached' }); await p.waitForTimeout(800); await p.click('#t_json');
   check('saved-after-login', (await J()).physics.gravity === 1000, (await J()).physics.gravity);
   check('still-logged-in', (await p.textContent('#authState')) === '編集できます', await p.textContent('#authState'));
   // 3) ステージ編集も要ログイン(ログイン後は動く)

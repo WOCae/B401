@@ -26,14 +26,19 @@ run "履歴の間引き"                  php tests/prune_test.php
 run "認証API"                       node tests/api_auth.mjs
 run "ステージ編集の純粋関数"        node tests/level_ops.mjs
 run "アップロードAPI"               node tests/api_assets.mjs
+# 画面テスト: 出力を保存し、"ok":true(または ok を持たないものは "errs":[])なら成功。失敗時は出力を表示する
+e2e() { # $1=表示名 $2=スクリプト名 [ENV=値 ...]
+  local label=$1 script=$2; shift 2
+  echo "== 画面: $label"; fresh
+  env "$@" node "tests/$script.cjs" >"$OUT/$script.out" 2>&1
+  if grep -q '"ok":true' "$OUT/$script.out" || { ! grep -q '"ok":' "$OUT/$script.out" && grep -Eq '"errs": *\[\]' "$OUT/$script.out"; }; then return 0; fi
+  echo "!! 失敗: $script"; tail -c 1500 "$OUT/$script.out"; FAIL=1
+}
 if [ -z "${NO_E2E:-}" ]; then
   export NODE_PATH=$(npm root -g)
-  run "画面: e2e_editor(ナビゲーション・レイアウト)" bash -c "node tests/e2e_editor.cjs | grep -q '\"ok\":true' && echo ok"
-  run "画面: e2e_login(ログイン)" bash -c "AUTH_BASE=http://127.0.0.1:$APORT AUTH_PASSWORD='$APASS' node tests/e2e_login.cjs | grep -q '\"ok\":true' && echo ok"
-  run "画面: e2e_stage(ステージ編集)" bash -c "node tests/e2e_stage.cjs | grep -q '\"ok\":true' && echo ok"
-  for t in e2e_dashboard e2e_3d e2e_no_webgl e2e_models e2e_broken_glb e2e_assets; do
-    run "画面: $t" bash -c "node tests/$t.cjs | tee '$OUT/$t.json' | grep -q '\"errs\": *\\[\\]' || grep -q '\"errs\":\\[\\]' '$OUT/$t.json' || { echo 'コンソールエラーあり'; cat '$OUT/$t.json'; exit 1; }"
-  done
+  e2e "e2e_editor(ナビゲーション・レイアウト)" e2e_editor
+  e2e "e2e_login(ログイン)" e2e_login AUTH_BASE=http://127.0.0.1:$APORT AUTH_PASSWORD="$APASS"
+  for t in e2e_stage e2e_dashboard e2e_3d e2e_no_webgl e2e_models e2e_broken_glb e2e_assets; do e2e "$t" "$t"; done
 fi
 [ $FAIL = 0 ] && echo "すべて成功" || echo "失敗あり"
 exit $FAIL
