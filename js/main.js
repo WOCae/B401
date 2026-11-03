@@ -2,7 +2,7 @@
 // ゲーム定義 app.game は「検証済みJSON」だけを保持し、壊れた入力は受け付けず直前の状態を保つ。
 import { api as serverApi, ApiError } from "./api.js";
 import { LocalBackend } from "./localbackend.js";
-import { exportProject, importProject, downloadBlob } from "./project.js";
+import { exportProject, exportProjectPng, importProject, parseProjectBytes, downloadBlob } from "./project.js";
 import { validateGame, clone } from "./schema.js";
 import { diagnose } from "./diagnose.js";
 import { applyPatchOps, describeOp } from "./patch.js";
@@ -143,27 +143,38 @@ function renderBackup() { // ブラウザ内の自動保存だけだと、ブラ
   el.textContent = ok ? "ファイル保存済み" : "● ファイル未保存"; el.className = ok ? "ok" : "warn";
   el.title = ok ? "この状態はファイルに保存済みです" : "ブラウザの自動保存とは別に、ファイルにも保存しておくと安心です(保存ボタン / Ctrl+S)";
 }
-async function doSave() {
+/** いま見えているゲーム画面(HUDなし)を640x384のPNGにする。3Dは描画した直後に同じ処理の中で読み取る */
+function captureThumb() {
+  const c = document.createElement("canvas"); c.width = 640; c.height = 384;
+  const g = c.getContext("2d"), r3 = view.r3d;
+  if (app.game.render.mode === "3d" && r3 && view.is3d) {
+    const keep = r3.showHitbox; r3.showHitbox = false; r3.render(app.engine, 0); r3.showHitbox = keep;
+    g.drawImage($("cv3"), 0, 0, 640, 384);
+  } else draw2d(g, app.engine);
+  return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error("画像を作れませんでした"))), "image/png"));
+}
+async function doSave(fmt = lsGet("saveFmt") === "png" ? "png" : "json") {
   try {
-    const r = await exportProject(api, app.gameId);
-    downloadBlob(r.blob, r.filename); lsSet("exported:" + app.gameId, String(r.version)); renderBackup();
-    say(`保存しました: ${r.filename}(GLBも含みます)`);
+    const r = fmt === "png" ? await exportProjectPng(api, app.gameId, await captureThumb()) : await exportProject(api, app.gameId);
+    downloadBlob(r.blob, r.filename); lsSet("saveFmt", fmt); lsSet("exported:" + app.gameId, String(r.version)); renderBackup();
+    say(`保存しました: ${r.filename}(${fmt === "png" ? "ゲーム画面の画像にデータを埋め込んでいます。サムネイルとして使えます" : "GLBも含みます"})`);
   } catch (e) { fail(e); }
 }
 async function doOpen(file) {
   if (!file) return;
   try {
     if (file.size > 60 * 1024 * 1024) throw new Error("ファイルが大きすぎます(上限60MB)");
-    const id = await importProject(api, await file.text());
+    const id = await importProject(api, parseProjectBytes(await file.arrayBuffer())); // JSONでもPNG(画像に埋め込み)でも読める
     await refreshGames(id); await openGame(id);
     say(`開きました: ${app.game.meta.title}(新しいゲームとして追加。元のゲームはそのまま残っています)`);
   } catch (e) { say("開けませんでした: " + e.message, "err", 9000); }
 }
-$("saveBtn").onclick = doSave;
+$("saveBtn").onclick = () => doSave("json");
+$("savePngBtn").onclick = () => doSave("png");
 $("openFile").onchange = e => { doOpen(e.target.files[0]); e.target.value = ""; };
 addEventListener("dragover", e => { if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault(); });
 addEventListener("drop", e => { const f = e.dataTransfer?.files?.[0]; if (f) { e.preventDefault(); doOpen(f); } });
-addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (app.gameId) doSave(); } });
+addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (app.gameId) doSave(); } }); // Ctrl+S は前回使った形式(既定はJSON)
 $("playBtn").onclick = () => { if (app.gameId) window.open(`play.html?game=${encodeURIComponent(app.gameId)}${MODE === "server" ? "&server=1" : ""}`, "_blank", "noopener"); };
 
 /* ---------- ログイン(サーバー保存モードのみ: 閲覧は公開・編集は要ログイン) ---------- */
@@ -366,7 +377,7 @@ $("helpClose").onclick = () => $("helpDlg").close();
 $("helpTpl").onclick = () => { $("helpDlg").close(); openTemplates().catch(fail); };
 $("dupGame").onclick = async () => { // 複製(GLBも一緒に)。プロジェクトの書き出し→読み込みと同じ経路
   try {
-    const out = await exportProject(api, app.gameId), id = await importProject(api, await out.blob.text());
+    const out = await exportProject(api, app.gameId), id = await importProject(api, JSON.parse(await out.blob.text()));
     const g = (await api.getGame(id)).game; g.meta.title = (g.meta.title + " のコピー").slice(0, 60);
     await api.saveGame(id, g, null, "複製"); await refreshGames(id); await openGame(id); say("複製しました");
   } catch (e) { fail(e); }

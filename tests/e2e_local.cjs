@@ -72,6 +72,27 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   await sel('world'); await p.locator('#c_physics_gravity').fill('1200'); await p.dispatchEvent('#c_physics_gravity', 'change'); await p.waitForTimeout(500);
   check('backup-dirty', (await p.textContent('#backupState')).includes('未保存'), await p.textContent('#backupState'));
 
+  // 6b) 画像で保存: ゲーム画面のPNGにJSON(GLB同梱)を埋め込む。3D表示のサムネイル → 2D表示のサムネイル
+  const pngmod = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'js', 'png.js')).href);
+  const colorsOf = bytes => p.evaluate(async b64 => { const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); const bmp = await createImageBitmap(new Blob([bin], { type: 'image/png' })); const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; const g = c.getContext('2d'); g.drawImage(bmp, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]); return { w: c.width, h: c.height, colors: seen.size }; }, Buffer.from(bytes).toString('base64'));
+  const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#savePngBtn')]);
+  const pngFile = path.join(OUT, 'saved.pfmk.png'); await dl2.saveAs(pngFile);
+  const pbytes = new Uint8Array(fs.readFileSync(pngFile)), pproj = JSON.parse(pngmod.extractText(pbytes, 'platformer-maker'));
+  out.png = { bytes: pbytes.length, size: pngmod.pngSize(pbytes), assets: pproj.assets.length, mode: pproj.game.render.mode };
+  check('png-embedded', pngmod.isPng(pbytes) && pproj.format === 'platformer-maker-project' && pproj.assets.length === 1 && pproj.game.physics.gravity === 1200 && pproj.game.render.mode === '3d', out.png);
+  const c3 = await colorsOf(pbytes); out.png.colors3d = c3.colors;
+  check('png-thumb-3d', c3.w === 640 && c3.h === 384 && c3.colors >= 8, c3);
+  check('png-backup-saved', (await p.textContent('#backupState')).includes('保存済み'), await p.textContent('#backupState'));
+  await p.click('#mode2d'); await p.waitForTimeout(700);
+  const [dl3] = await Promise.all([p.waitForEvent('download'), p.click('#savePngBtn')]);
+  const pngFile2d = path.join(OUT, 'saved2d.pfmk.png'); await dl3.saveAs(pngFile2d);
+  const c2 = await colorsOf(new Uint8Array(fs.readFileSync(pngFile2d))); out.png.colors2d = c2.colors;
+  check('png-thumb-2d', c2.colors >= 8, c2);
+  await p.click('#mode3d'); await p.waitForTimeout(700);
+  // Ctrl+S は前回使った形式(PNG)で保存する
+  const [dl4] = await Promise.all([p.waitForEvent('download'), p.keyboard.press('Control+s')]);
+  check('ctrl-s-uses-last-format', pngmod.isPng(new Uint8Array(fs.readFileSync(await (async () => { const f = path.join(OUT, 'ctrl.bin'); await dl4.saveAs(f); return f; })()))));
+
   // 7) 複製(GLBも一緒に)・新規・削除
   await p.click('#dupGame'); await p.waitForTimeout(1500);
   const dupId = await p.inputValue('#gameSel'); await tab('assets');
@@ -108,6 +129,17 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   const ef = path.join(OUT, 'evil.json'); fs.writeFileSync(ef, JSON.stringify(evil)); await p.setInputFiles('#openFile', ef); await p.waitForTimeout(600);
   check('reject-bad-glb', (await p.textContent('#status')).includes('GLB') && (await opts()) === 3, await p.textContent('#status'));
 
+  // 8b) 画像(PNG)から開く。データの入っていないPNG・壊れたPNGは取り込まない
+  await p.setInputFiles('#openFile', pngFile); await p.waitForTimeout(2000);
+  await tab('assets');
+  check('open-png', (await opts()) === 4 && (await p.locator('#assetList > .asset').count()) === 1 && (await p.textContent('#status')).includes('開きました'), [await opts(), await p.textContent('#status')]);
+  const stripped = (() => { const cs = pngmod.readChunks(pbytes).filter(c => c.type !== 'tEXt'), parts = [pbytes.subarray(0, 8), ...cs.map(c => pbytes.subarray(c.pos, c.end))]; const o = new Uint8Array(parts.reduce((n, x) => n + x.length, 0)); let k = 0; for (const x of parts) { o.set(x, k); k += x.length; } return o; })();
+  const corrupt = pbytes.slice(); { const tc = pngmod.readChunks(corrupt).find(c => c.type === 'tEXt'); corrupt[tc.dataStart + 40] ^= 0xff; }
+  for (const [name, bytes, expect] of [['plain.png', stripped, 'ゲームのデータが入っていません'], ['corrupt.png', corrupt, '壊れています'], ['cut.png', pbytes.slice(0, pbytes.length - 50), '途中で切れています']]) {
+    const f = path.join(OUT, name); fs.writeFileSync(f, bytes); await p.setInputFiles('#openFile', f); await p.waitForTimeout(600);
+    check('reject-' + name, (await p.textContent('#status')).includes(expect) && (await opts()) === 4, await p.textContent('#status'));
+  }
+
   // 9) 遊ぶ専用ページ: ブラウザ内のゲーム / URL指定(別オリジン想定のCORS付きサーバー)
   const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('play: ' + e.message));
   pg.on('request', r => { if (r.url().includes('api/index.php')) apiCalls.push(r.url()); });
@@ -116,7 +148,7 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   let x1 = x0; for (let i = 0; i < 40 && x1 <= x0; i++) { await pg.waitForTimeout(100); x1 = await pg.evaluate(() => window.__play.engine.S.p.x); } // 動き出すまで待つ(負荷対策)
   await pg.keyboard.up('ArrowRight');
   check('play-local', (await pg.textContent('#ptitle')).length > 0 && x1 > x0, [x0, x1]);
-  const srv = http.createServer((req, res) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Content-Type', 'application/json'); res.end(fs.readFileSync(file)); });
+  const srv = http.createServer((req, res) => { res.setHeader('Access-Control-Allow-Origin', '*'); const isPng = req.url.endsWith('.png'); res.setHeader('Content-Type', isPng ? 'image/png' : 'application/json'); res.end(fs.readFileSync(isPng ? pngFile : file)); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const url = `http://127.0.0.1:${srv.address().port}/g.pfmk.json`;
   const pg2 = await ctx.newPage(); pg2.on('pageerror', e => errs.push('play2: ' + e.message));
   await pg2.goto(`${BASE}/play.html?debug&src=${encodeURIComponent(url)}`); await pg2.waitForTimeout(2500);
@@ -128,6 +160,11 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   check('play-to-editor', pg2.url().includes('index.html?game=g-') , pg2.url());
   const pg3 = await ctx.newPage(); await pg3.goto(`${BASE}/play.html?src=${encodeURIComponent('http://127.0.0.1:1/none.json')}`); await pg3.waitForTimeout(1200);
   check('play-error', (await pg3.textContent('#pmsg')).includes('読み込めませんでした') && await pg3.locator('#pdrop').isVisible(), await pg3.textContent('#pmsg'));
+  // 画像(PNG)のURLをそのまま渡しても遊べる(サムネイル兼プロジェクト)
+  const urlPng = `http://127.0.0.1:${srv.address().port}/g.pfmk.png`, pg4 = await ctx.newPage(); pg4.on('pageerror', e => errs.push('play4: ' + e.message));
+  await pg4.goto(`${BASE}/play.html?debug&src=${encodeURIComponent(urlPng)}`); await pg4.waitForTimeout(2500);
+  out.playPng = { title: await pg4.textContent('#ptitle'), mode: await pg4.evaluate(() => window.__play.game && window.__play.game.render.mode), model: await pg4.evaluate(() => window.__play.r3d ? [...window.__play.r3d.ready.keys()].some(k => k.startsWith('uploads/')) : false) };
+  check('play-png', out.playPng.title.length > 0 && out.playPng.title !== '読み込み中…' && out.playPng.mode === '3d' && out.playPng.model, out.playPng);
   srv.close();
 
   check('no-php', apiCalls.length === 0, apiCalls);

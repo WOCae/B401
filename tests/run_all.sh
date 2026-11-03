@@ -25,6 +25,7 @@ fresh() { rm -rf "$DATA/demo" uploads/demo; } # 画面テストは毎回、初�
 run() { echo "== $1"; shift; case "$1" in bash) fresh;; esac; "$@" || { echo "!! 失敗: $*"; FAIL=1; }; }
 run "JS↔PHP 検証の一致"            tests/parity.sh
 run "エンジン等価(元プロトタイプ)"  node tests/engine_equivalence.mjs
+run "PNGへのJSON埋め込み"            node tests/png.mjs
 run "テンプレート(検証・クリア可能)" node tests/templates.mjs
 run "GLB検証のJS↔PHP一致"          node tests/parity_glb.mjs
 run "履歴の間引き"                  php tests/prune_test.php

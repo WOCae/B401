@@ -10,7 +10,7 @@ import { Engine, advance } from "./engine.js";
 import { draw2d } from "./render2d.js";
 import { drawHud } from "./hud.js";
 import { bindInput } from "./input.js";
-import { FORMAT, b64ToBytes, importProject } from "./project.js";
+import { FORMAT, b64ToBytes, importProject, parseProjectBytes } from "./project.js";
 import { inspectGlb } from "./glb.js";
 
 const $ = id => document.getElementById(id);
@@ -23,8 +23,7 @@ if (params.has("debug")) window.__play = S; // テスト用
 const msg = (t, show = true) => { const el = $("pmsg"); el.textContent = t; el.classList.toggle("show", show && !!t); };
 
 /** プロジェクトファイルの内容(JSON)を検証し、同梱GLBを Blob URL にして取り出す */
-function readProject(text) {
-  let p; try { p = JSON.parse(text); } catch { throw new Error("プロジェクトファイル(JSON)として読み取れません"); }
+function readProject(p) {
   if (!p || p.format !== FORMAT) throw new Error("このツールのプロジェクトファイルではありません");
   if (typeof p.version !== "number" || p.version > 1) throw new Error("新しい形式のファイルです。ツールを更新してください");
   const v = validateGame(p.game, S.schema);
@@ -49,7 +48,7 @@ function start(game) {
   S.is3d = null;
 }
 
-async function loadFromText(text) { start(readProject(text)); }
+async function loadFromBytes(buf) { start(readProject(parseProjectBytes(buf))); } // JSONでもPNG(画像に埋め込み)でもよい
 
 async function boot() {
   bindInput(keys, $);
@@ -61,7 +60,7 @@ async function boot() {
       const r = await fetch(src);
       if (!r.ok) throw new Error(`ファイルを取得できません(HTTP ${r.status})`);
       const len = +r.headers.get("content-length") || 0; if (len > 60 * 1024 * 1024) throw new Error("ファイルが大きすぎます(上限60MB)");
-      await loadFromText(await r.text());
+      await loadFromBytes(await r.arrayBuffer());
     } else if (id) {
       const g = await backend.getGame(id); S.gameId = id;
       const v = validateGame(g.game, S.schema); if (!v.ok) throw new Error("ゲーム定義が不正です");
@@ -107,7 +106,7 @@ $("peditor").onclick = async () => {
     else msg("開くゲームがありません");
   } catch (e) { msg("エディタで開けませんでした: " + e.message); }
 };
-async function openFile(file) { try { if (file.size > 60 * 1024 * 1024) throw new Error("ファイルが大きすぎます(上限60MB)"); msg("", false); await loadFromText(await file.text()); } catch (e) { msg("読み込めませんでした: " + e.message); } }
+async function openFile(file) { try { if (file.size > 60 * 1024 * 1024) throw new Error("ファイルが大きすぎます(上限60MB)"); msg("", false); await loadFromBytes(await file.arrayBuffer()); } catch (e) { msg("読み込めませんでした: " + e.message); } }
 $("pfile").onchange = e => { if (e.target.files[0]) openFile(e.target.files[0]); };
 addEventListener("dragover", e => e.preventDefault());
 addEventListener("drop", e => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) openFile(f); });

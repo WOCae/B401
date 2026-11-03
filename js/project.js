@@ -3,8 +3,10 @@
 // backend は LocalBackend / サーバー版 api のどちらでもよい(同じメソッドだけを使う)。
 import { validateGame } from "./schema.js";
 import { inspectGlb, modelRefs } from "./glb.js";
+import { isPng, embedText, extractText, toAscii } from "./png.js";
 
 export const FORMAT = "platformer-maker-project";
+export const PNG_KEY = "platformer-maker"; // PNGの tEXt チャンクのキーワード(ComfyUI等と同じ方式)
 const MAX_FILE = 60 * 1024 * 1024; // 読み込めるプロジェクトファイルの上限
 
 export function bytesToB64(bytes) {
@@ -16,15 +18,40 @@ export function b64ToBytes(b64) { const s = atob(b64), u8 = new Uint8Array(s.len
 
 const fileNameOf = title => (String(title).replace(/[\\/:*?"<>|\0]+/g, "").trim().slice(0, 40) || "game") + ".pfmk.json";
 
-/** ゲームを1つのプロジェクト(JSON)にまとめる。ブラウザ内/サーバー上のGLBも埋め込む(サンプルは同梱ファイルなので参照のみ) */
-export async function exportProject(backend, gameId) {
+async function buildProject(backend, gameId) {
   const g = await backend.getGame(gameId), assets = [];
   for (const path of Object.keys(modelRefs(g.game))) {
     if (!path.startsWith("uploads/")) continue;
     try { assets.push({ path, name: path.split("/").pop(), data: bytesToB64(await backend.getAssetBytes(path)) }); } catch { /* 欠けているモデルは省く(プリミティブで表示される) */ }
   }
-  const project = { format: FORMAT, version: 1, exportedAt: new Date().toISOString(), title: g.game.meta.title, game: g.game, assets };
-  return { blob: new Blob([JSON.stringify(project)], { type: "application/json" }), filename: fileNameOf(g.game.meta.title), version: g.version };
+  return { project: { format: FORMAT, version: 1, exportedAt: new Date().toISOString(), title: g.game.meta.title, game: g.game, assets }, version: g.version, title: g.game.meta.title };
+}
+
+/** ゲームを1つのプロジェクト(JSON)にまとめる。ブラウザ内/サーバー上のGLBも埋め込む(サンプルは同梱ファイルなので参照のみ) */
+export async function exportProject(backend, gameId) {
+  const { project, version, title } = await buildProject(backend, gameId);
+  return { blob: new Blob([JSON.stringify(project)], { type: "application/json" }), filename: fileNameOf(title), version };
+}
+
+/** 同じプロジェクトを、サムネイル画像(PNG)の tEXt チャンクに埋め込んで書き出す。画像としてそのまま見られ、「開く」でも読める */
+export async function exportProjectPng(backend, gameId, imageBlob) {
+  const { project, version, title } = await buildProject(backend, gameId);
+  const png = new Uint8Array(await imageBlob.arrayBuffer());
+  if (!isPng(png)) throw new Error("サムネイル画像を作れませんでした");
+  const out = embedText(png, [[PNG_KEY, toAscii(JSON.stringify(project))], ["Software", "platformer-maker"]]);
+  return { blob: new Blob([out], { type: "image/png" }), filename: fileNameOf(title).replace(/\.pfmk\.json$/, ".pfmk.png"), version };
+}
+
+/** ファイル/URLの中身(JSONまたはPNG)からプロジェクトのオブジェクトを取り出す。検証は importProject / 呼び出し側で行う */
+export function parseProjectBytes(buf) {
+  const u8 = new Uint8Array(buf);
+  if (u8.length > MAX_FILE) throw new Error("ファイルが大きすぎます(上限60MB)");
+  let text;
+  if (isPng(u8)) {
+    text = extractText(u8, PNG_KEY); // 壊れていれば例外(CRC不一致・途中で切れている等)
+    if (text === null) throw new Error("この画像にはゲームのデータが入っていません(このツールの「画像で保存」で作ったPNGではありません)");
+  } else text = new TextDecoder().decode(u8);
+  try { return JSON.parse(text); } catch { throw new Error("プロジェクトファイル(JSON)として読み取れません"); }
 }
 
 /** プロジェクト(JSON文字列/オブジェクト)を検証して新しいゲームとして取り込む。戻り値: 新しいゲームID */
