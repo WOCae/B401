@@ -6,6 +6,7 @@ import { diagnose } from "./diagnose.js";
 import { applyPatchOps, describeOp } from "./patch.js";
 import { Engine, advance } from "./engine.js";
 import { draw2d } from "./render2d.js";
+import { drawHud } from "./hud.js";
 import { bindInput } from "./input.js";
 import { SUGGESTIONS } from "./suggest.js";
 
@@ -36,34 +37,56 @@ function setGame(raw, { restart = true, version } = {}) {
   return v;
 }
 
-/* ---------- スライダー ---------- */
-const sliderFields = () => app.schema.fields.filter(f => f.slider);
+/* ---------- パラメータ調整・表示設定(スキーマのフィールドから自動生成) ---------- */
+// group が "view" のフィールド=表示・カメラ・見た目、それ以外の slider=物理などのパラメータ
+const paramFields = () => app.schema.fields.filter(f => f.slider && f.group !== "view");
+const viewFields = () => app.schema.fields.filter(f => f.group === "view");
 const pathGet = (g, p) => p.split(".").reduce((a, k) => a[k], g);
 const idOf = p => p.replace(/\./g, "_");
-function buildSliders() {
-  const sl = $("sliders"); sl.innerHTML = "";
-  for (const f of sliderFields()) {
-    const r = document.createElement("div"); r.className = "row";
-    r.innerHTML = `<label for="s_${idOf(f.path)}">${esc(f.label)}</label><input type="range" id="s_${idOf(f.path)}" min="${f.min}" max="${f.max}" step="${f.step}"><output id="o_${idOf(f.path)}"></output>`;
-    sl.appendChild(r);
-    const inp = r.querySelector("input");
-    inp.addEventListener("input", () => { // 即時反映(エンジンは app.game を参照している)
-      const [g, k] = f.path.split("."); app.game[g][k] = +inp.value;
-      $("o_" + idOf(f.path)).textContent = inp.value; renderDiag(); syncJson();
-    });
-    inp.addEventListener("change", async () => { // 指を離したらサーバーに保存(履歴に残る)
-      inp.blur();
-      await commitGame(app.game, `${f.label}を調整`, { restart: false });
-    });
+const setField = (path, v) => { const ks = path.split("."), last = ks.pop(); pathGet(app.game, ks.join("."))[last] = v; };
+const refreshers = [];
+function buildControls(container, fields) {
+  container.innerHTML = "";
+  for (const f of fields) {
+    const id = "c_" + idOf(f.path), r = document.createElement("div"); r.className = "row";
+    const live = v => { setField(f.path, v); renderDiag(); syncJson(); };
+    const commit = () => commitGame(app.game, `${f.label}を調整`, { restart: false });
+    if (f.type === "number") {
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}"><output></output>`;
+      const inp = r.querySelector("input"), out = r.querySelector("output");
+      inp.addEventListener("input", () => { out.textContent = inp.value; live(+inp.value); });
+      inp.addEventListener("change", () => { inp.blur(); commit(); });
+      refreshers.push(() => { const v = pathGet(app.game, f.path); inp.value = v; out.textContent = v; });
+    } else if (f.type === "enum") {
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><select id="${id}">${f.values.map((v, i) => `<option value="${esc(v)}">${esc(f.valueLabels[i])}</option>`).join("")}</select><span></span>`;
+      const sel = r.querySelector("select");
+      sel.addEventListener("change", () => { live(sel.value); sel.blur(); commit(); });
+      refreshers.push(() => { sel.value = pathGet(app.game, f.path); });
+    } else if (f.type === "bool") {
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="checkbox" id="${id}" style="justify-self:start"><span></span>`;
+      const cb = r.querySelector("input");
+      cb.addEventListener("change", () => { live(cb.checked); cb.blur(); commit(); });
+      refreshers.push(() => { cb.checked = pathGet(app.game, f.path); });
+    } else if (f.type === "color") {
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="color" id="${id}" style="justify-self:start"><span></span>`;
+      const ci = r.querySelector("input"), tail = r.querySelector("span");
+      const fallback = () => f.path === "assets.player.primitive.color" ? app.game.theme.player : "#000000";
+      ci.addEventListener("input", () => live(ci.value));
+      ci.addEventListener("change", () => { updateTail(); commit(); });
+      let rb = null;
+      const updateTail = () => {
+        tail.innerHTML = ""; if (!f.nullable) return;
+        if (pathGet(app.game, f.path) === null) { tail.textContent = "テーマ色"; tail.className = "mute"; return; }
+        rb = document.createElement("button"); rb.className = "mini"; rb.textContent = "×"; rb.title = "テーマ色に戻す";
+        rb.onclick = () => { live(null); updateTail(); ci.value = fallback(); commit(); };
+        tail.appendChild(rb);
+      };
+      refreshers.push(() => { const v = pathGet(app.game, f.path); ci.value = v === null ? fallback() : v; updateTail(); });
+    }
+    container.appendChild(r);
   }
 }
-function syncUI() {
-  for (const f of sliderFields()) {
-    $("s_" + idOf(f.path)).value = pathGet(app.game, f.path);
-    $("o_" + idOf(f.path)).textContent = pathGet(app.game, f.path);
-  }
-  renderDiag(); syncJson();
-}
+function syncUI() { refreshers.forEach(fn => fn()); renderDiag(); syncJson(); }
 function syncJson() { if (document.activeElement !== $("json")) $("json").value = JSON.stringify(app.game, null, 1); }
 function renderDiag() {
   const d = diagnose(app.game, app.schema);
@@ -175,11 +198,34 @@ $("newGame").onclick = async () => {
 };
 
 /* ---------- メインループ ---------- */
+const hud = $("hud").getContext("2d");
+const view = { r3d: null, state: "idle", is3d: null }; // state: idle | loading | failed
+function ensure3d() {
+  if (view.state !== "idle") return;
+  view.state = "loading";
+  import("./render3d.js")
+    .then(m => { view.r3d = new m.Renderer3D($("cv3")); view.state = "ready"; })
+    .catch(e => { view.state = "failed"; say("3D表示を開始できないため2Dで表示します(" + e.message + ")", "err", 10000); });
+}
+function setViewMode(is3d) {
+  if (view.is3d === is3d) return;
+  view.is3d = is3d;
+  $("cv").classList.toggle("off", is3d); $("cv3").classList.toggle("off", !is3d);
+}
 let last = 0, acc = 0;
 function loop(ts) {
   try {
-    acc = advance(app.engine, acc, (ts - last) / 1000, keys); last = ts;
-    draw2d(ctx, app.engine);
+    const dt = (ts - last) / 1000; last = ts;
+    acc = advance(app.engine, acc, dt, keys);
+    const want3d = app.game.render.mode === "3d";
+    if (want3d) ensure3d();
+    const use3d = want3d && view.r3d !== null;
+    setViewMode(use3d);
+    if (use3d) {
+      try { view.r3d.render(app.engine, Math.min(.1, dt)); }
+      catch (e) { console.error(e); view.state = "failed"; view.r3d = null; setViewMode(false); say("3D描画でエラーが発生したため2Dで表示します(" + e.message + ")", "err", 10000); draw2d(ctx, app.engine); }
+    } else draw2d(ctx, app.engine);
+    drawHud(hud, app.engine);
   } catch (e) { console.error(e); say("実行中にエラーが発生したため、最後の保存状態に戻します", "err", 8000); reload(true).catch(() => {}); }
   requestAnimationFrame(loop);
 }
@@ -189,7 +235,8 @@ function loop(ts) {
   try {
     bindInput(keys, $);
     app.schema = await api.getSchema();
-    buildSliders();
+    buildControls($("sliders"), paramFields());
+    buildControls($("viewctl"), viewFields());
     let { games } = await api.listGames();
     if (!games.length) { await api.createGame("demo", null); ({ games } = await api.listGames()); }
     await refreshGames(games[0].game_id);

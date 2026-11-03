@@ -84,6 +84,22 @@ function validate_game_def(mixed $input, array $schema): array
         [$found, $raw] = get_path($input, $f['path']);
         if (!$found) {
             $v = $f['default'];
+        } elseif ($raw === null && ($f['nullable'] ?? false)) {
+            $v = null;
+        } elseif ($f['type'] === 'enum') {
+            if (is_string($raw) && in_array($raw, $f['values'], true)) {
+                $v = $raw;
+            } else {
+                $warnings[] = issue($f['path'], 'type', "{$f['path']}: " . implode(' / ', $f['values']) . " のいずれかにしてください。既定値 {$f['default']} を使います");
+                $v = $f['default'];
+            }
+        } elseif ($f['type'] === 'bool') {
+            if (is_bool($raw)) {
+                $v = $raw;
+            } else {
+                $warnings[] = issue($f['path'], 'type', "{$f['path']}: true / false にしてください。既定値 " . json_encode($f['default']) . ' を使います');
+                $v = $f['default'];
+            }
         } elseif ($f['type'] === 'number') {
             if (!(is_int($raw) || is_float($raw)) || !is_finite((float)$raw)) {
                 $warnings[] = issue($f['path'], 'type', "{$f['path']}: 数値ではないため既定値 " . num_str($f['default']) . ' を使います');

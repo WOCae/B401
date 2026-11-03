@@ -15,7 +15,7 @@
 </header>
 <main>
 <section>
-<canvas id="cv" width="640" height="384"></canvas>
+<div class="stage"><canvas id="cv" width="640" height="384"></canvas><canvas id="cv3" class="off" width="640" height="384"></canvas><canvas id="hud" width="640" height="384"></canvas></div>
 <div class="pad">
 <button id="bl">◀</button><button id="bj">ジャンプ</button><button id="br">▶</button>
 </div>
@@ -26,6 +26,11 @@
 <h2>パラメータ調整(即時反映)</h2>
 <div id="sliders"></div>
 <div class="bar"><button id="restart">リスタート</button><button id="undo">元に戻す</button></div>
+</div>
+<div class="card">
+<h2>表示・カメラ・見た目</h2>
+<div id="viewctl"></div>
+<p class="mute">表示モード「3D」にするとThree.jsで描画します。ゲームのロジック(物理・当たり判定)は2Dのままで、見た目だけが変わります。</p>
 </div>
 <div class="card">
 <h2>難易度の診断</h2>
@@ -44,6 +49,7 @@
 </div>
 </section>
 </main>
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}</script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

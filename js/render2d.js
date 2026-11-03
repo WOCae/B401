@@ -17,8 +17,4 @@ export function draw2d(c, eng) {
   c.fillStyle = th.player; c.fillRect(p.x, p.y, p.w, p.h);
   c.fillStyle = "#fff"; c.fillRect(p.x + (p.vx < -5 ? 3 : 13), p.y + 6, 6, 6);
   c.restore();
-  c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(8, 8, 236, 24);
-  c.fillStyle = "#fff"; c.font = "14px sans-serif";
-  c.fillText("コイン " + S.coins + "/" + S.total + "   ミス " + S.deaths + "   " + S.t.toFixed(1) + "秒", 16, 25);
-  if (S.won) { c.fillStyle = "rgba(0,0,0,.6)"; c.fillRect(0, VH / 2 - 40, VW, 80); c.fillStyle = "#fff"; c.font = "bold 24px sans-serif"; c.textAlign = "center"; c.fillText("クリア! " + S.t.toFixed(1) + "秒 / ミス " + S.deaths, VW / 2, VH / 2 + 8); c.textAlign = "left"; }
 }

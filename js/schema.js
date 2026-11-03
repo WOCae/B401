@@ -49,6 +49,20 @@ export function validateGame(input, schema) {
     let v;
     if (raw === undefined) {
       v = f.default;
+    } else if (raw === null && f.nullable) {
+      v = null;
+    } else if (f.type === "enum") {
+      if (typeof raw === "string" && f.values.includes(raw)) v = raw;
+      else {
+        warnings.push(issue(f.path, "type", `${f.path}: ${f.values.join(" / ")} のいずれかにしてください。既定値 ${f.default} を使います`));
+        v = f.default;
+      }
+    } else if (f.type === "bool") {
+      if (typeof raw === "boolean") v = raw;
+      else {
+        warnings.push(issue(f.path, "type", `${f.path}: true / false にしてください。既定値 ${f.default} を使います`));
+        v = f.default;
+      }
     } else if (f.type === "number") {
       if (typeof raw !== "number" || !Number.isFinite(raw)) {
         warnings.push(issue(f.path, "type", `${f.path}: 数値ではないため既定値 ${f.default} を使います`));
