@@ -59,10 +59,12 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   check('zoom-coords', (await row(1))[16] === '^', await row(1)); await p.selectOption('#stZoom', '1');
   await p.screenshot({ path: OUT + '/stage_edit.png' });
   // 11) 終了してプレイ(編集内容が反映され、ゲームが動く)
-  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
-  const x0 = await p.evaluate(() => window.__app.engine.S.p.x); await p.keyboard.down('ArrowRight'); await p.waitForTimeout(500); await p.keyboard.up('ArrowRight');
-  const x1 = await p.evaluate(() => window.__app.engine.S.p.x);
-  out.exit = { active: await p.evaluate(() => window.__editor.active), moved: x1 > x0 }; check('exit-play', !out.exit.active && out.exit.moved, out.exit);
+  await p.keyboard.press('Escape'); await p.waitForFunction(() => !window.__editor.active); await p.waitForTimeout(800); // 開始位置が空中でも、落ちて着地するまで待つ
+  const px = () => p.evaluate(() => { const S = window.__app.engine.S; return { x: S.p.x, y: S.p.y, on: S.p.on, deaths: S.deaths }; });
+  const st0 = await px(); await p.keyboard.down('ArrowRight');
+  let st1 = st0; for (let i = 0; i < 40 && st1.x <= st0.x; i++) { await p.waitForTimeout(100); st1 = await px(); } // 負荷が高くても、動き出すまで待つ
+  await p.keyboard.up('ArrowRight');
+  out.exit = { active: await p.evaluate(() => window.__editor.active), moved: st1.x > st0.x, st0, st1 }; check('exit-play', !out.exit.active && out.exit.moved, out.exit);
   // 12) 3Dでも編集結果が出る
   await p.click('#mode3d'); await p.waitForTimeout(1200); await p.locator('.stage').screenshot({ path: OUT + '/stage_3d.png' });
   out.levelRows = (await level()).length;

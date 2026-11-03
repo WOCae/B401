@@ -29,8 +29,9 @@ if (!BASE || !PASSWORD) { console.error('AUTH_BASE と AUTH_PASSWORD が必要�
   check('unauth-msg', (await p.textContent('#loginErr')).includes('ログインが必要'), await p.textContent('#loginErr'));
   await p.click('#loginCancel'); check('cancel', !(await dlgOpen()));
   // 閲覧(プレイ)は未ログインでもできる
-  const x0 = await p.evaluate(() => window.__app.engine.S.p.x); await p.keyboard.down('ArrowRight'); await p.waitForTimeout(400); await p.keyboard.up('ArrowRight');
-  check('play-public', (await p.evaluate(() => window.__app.engine.S.p.x)) > x0);
+  const x0 = await p.evaluate(() => window.__app.engine.S.p.x); await p.keyboard.down('ArrowRight');
+  let x1 = x0; for (let i = 0; i < 40 && x1 <= x0; i++) { await p.waitForTimeout(100); x1 = await p.evaluate(() => window.__app.engine.S.p.x); } // 動き出すまで待つ(負荷対策)
+  await p.keyboard.up('ArrowRight'); check('play-public', x1 > x0, [x0, x1]);
   // アップロードも未ログインでは拒否
   await p.click('#t_assets'); await p.setInputFiles('#assetFile', __dirname + '/../assets/samples/tile_block.glb'); await p.click('#assetUp'); await p.waitForTimeout(900);
   check('upload-denied', (await p.textContent('#assetMsg')).includes('ログインが必要') && await dlgOpen(), await p.textContent('#assetMsg')); await p.click('#loginCancel');

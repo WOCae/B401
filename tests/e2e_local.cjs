@@ -112,8 +112,10 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('play: ' + e.message));
   pg.on('request', r => { if (r.url().includes('api/index.php')) apiCalls.push(r.url()); });
   await pg.goto(`${BASE}/play.html?debug&game=${gid}`); await pg.waitForTimeout(1500);
-  const x0 = await pg.evaluate(() => window.__play.engine.S.p.x); await pg.keyboard.down('ArrowRight'); await pg.waitForTimeout(500); await pg.keyboard.up('ArrowRight');
-  check('play-local', (await pg.textContent('#ptitle')).length > 0 && (await pg.evaluate(() => window.__play.engine.S.p.x)) > x0, await pg.textContent('#ptitle'));
+  const x0 = await pg.evaluate(() => window.__play.engine.S.p.x); await pg.keyboard.down('ArrowRight');
+  let x1 = x0; for (let i = 0; i < 40 && x1 <= x0; i++) { await pg.waitForTimeout(100); x1 = await pg.evaluate(() => window.__play.engine.S.p.x); } // 動き出すまで待つ(負荷対策)
+  await pg.keyboard.up('ArrowRight');
+  check('play-local', (await pg.textContent('#ptitle')).length > 0 && x1 > x0, [x0, x1]);
   const srv = http.createServer((req, res) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Content-Type', 'application/json'); res.end(fs.readFileSync(file)); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r)); const url = `http://127.0.0.1:${srv.address().port}/g.pfmk.json`;
   const pg2 = await ctx.newPage(); pg2.on('pageerror', e => errs.push('play2: ' + e.message));
