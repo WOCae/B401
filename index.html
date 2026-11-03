@@ -11,12 +11,13 @@
 <div id="app">
 <header class="toolbar">
   <div class="brand">プラットフォーマー作成ツール</div>
-  <div class="tgroup"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame" title="今のゲームを複製して新規作成">＋ 新規</button></div>
+  <div class="tgroup"><select id="gameSel" aria-label="ゲーム"></select><button id="newGame" title="初期ステージの新しいゲームを作る">＋ 新規</button><button id="dupGame" title="今のゲームを(GLBも含めて)複製">複製</button><button id="delGame" class="local-only" title="このゲームを削除(ブラウザ内のデータも消えます)">削除</button></div>
+  <div class="tgroup"><button id="saveBtn" title="プロジェクトファイルに保存 (Ctrl+S)。GLBも含みます">保存</button><label class="btnlike" title="プロジェクトファイルを開く(画面にドラッグ&ドロップも可)">開く<input type="file" id="openFile" accept=".json,.pfmk" hidden></label><button id="playBtn" title="遊ぶ専用ページを新しいタブで開く">▶ 遊ぶ画面</button><span id="backupState" class="mute"></span></div>
   <div class="tgroup"><button id="editBtn" title="タイルをクリックして配置するステージ編集(Esc で終了)">✎ ステージ編集</button><button id="restart" class="pri" title="最初からやり直す">▶ リスタート</button><button id="undo" title="1つ前の状態に戻す">↶ 元に戻す</button></div>
   <div class="tgroup seg" role="group" aria-label="表示モード"><button id="mode2d">2D</button><button id="mode3d">3D</button></div>
   <label class="chk"><input type="checkbox" id="showHit"> ヒットボックス表示</label>
   <span class="spacer"></span>
-  <span id="authState" class="mute"></span><button id="authBtn">ログイン</button>
+  <span id="authState" class="mute"></span><button id="authBtn" class="server-only">ログイン</button>
   <button id="themeBtn" title="ダーク/ライトを切り替え">テーマ</button>
 </header>
 <div id="status" role="status"></div>

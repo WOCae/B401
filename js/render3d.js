@@ -107,7 +107,7 @@ class Actor {
 export class Renderer3D {
   /** hooks: { onWarn(msg), onModel({kind,url,clips}) } */
   constructor(canvas, hooks = {}) {
-    this.onWarn = hooks.onWarn; this.onModel = hooks.onModel; this.showHitbox = false;
+    this.onWarn = hooks.onWarn; this.onModel = hooks.onModel; this.urlOf = hooks.urlOf || (p => p); this.showHitbox = false;
     this.loader = new GLTFLoader(); this.cache = new Map(); this.ready = new Map(); this.failed = new Set(); this.warnedMsgs = new Set();
     this.versions = {}; this.versionsJson = "{}"; this.dirty = false; this.recs = [];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); // WebGL非対応なら例外 → 呼び出し側で2Dに戻す
@@ -209,7 +209,7 @@ export class Renderer3D {
   loadModel(url) {
     const key = this.keyOf(url);
     if (!this.cache.has(key)) {
-      this.cache.set(key, this.loader.loadAsync(key).then(g => {
+      this.cache.set(key, Promise.resolve(this.urlOf(url)).then(u => this.loader.loadAsync(/^blob:/.test(u) || !this.versions[url] ? u : `${u}?v=${this.versions[url]}`)).then(g => {
         if (!g.scene) throw new Error("シーンがありません");
         this.ready.set(key, g); this.dirty = true; // タイル用に使うステージの作り直しを促す
         return g;

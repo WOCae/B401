@@ -3,7 +3,7 @@ const S = (process.env.OUT || '/tmp');
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1100, height: 900 } });
   const errs = []; p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
-  await p.goto('' + (process.env.BASE || 'http://127.0.0.1:8099') + '/index.html?debug&showall'); await p.waitForSelector('#c_physics_gravity'); await p.waitForTimeout(500);
+  await p.goto('' + (process.env.BASE || 'http://127.0.0.1:8099') + '/index.html?debug&showall&server=1'); await p.waitForSelector('#c_physics_gravity'); await p.waitForTimeout(500);
   const out = {}; const J = async () => JSON.parse(await p.inputValue('#json'));
   out.sliders = await p.locator('#ic_world_physics input').count();
   out.option = await p.locator('#gameSel option').first().textContent();

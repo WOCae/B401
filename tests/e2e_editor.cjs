@@ -5,7 +5,7 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } }); const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/404|Failed to load/.test(m.text())) errs.push(m.text()); });
-  await p.goto(BASE + '/index.html'); await p.waitForSelector('#hierList .hitem'); await p.waitForTimeout(600);
+  await p.goto(BASE + '/index.html?server=1'); await p.waitForSelector('#hierList .hitem'); await p.waitForTimeout(600);
   const out = {}; const vis = sel => p.locator(sel).first().isVisible();
   out.hierItems = await p.locator('#hierList .hitem').count();
   out.defaultSel = { title: await p.textContent('#inspTitle'), gravity: await vis('#c_physics_gravity'), playerModel: await vis('#c_assets_player_model') };
@@ -44,7 +44,7 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   await p.screenshot({ path: OUT + '/editor_dark.png' });
   // スマホ幅: 縦に積まれて横スクロールが出ない
   const m = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }); const q = await m.newPage();
-  await q.goto(BASE + '/index.html'); await q.waitForSelector('#hierList .hitem'); await q.waitForTimeout(600);
+  await q.goto(BASE + '/index.html?server=1'); await q.waitForSelector('#hierList .hitem'); await q.waitForTimeout(600);
   out.mobile = await q.evaluate(() => ({ noHScroll: document.documentElement.scrollWidth <= window.innerWidth + 1, pad: getComputedStyle(document.querySelector('.pad')).display, stageW: Math.round(document.getElementById('stage').getBoundingClientRect().width) }));
   await q.screenshot({ path: OUT + '/editor_mobile.png', fullPage: true });
   out.errs = errs; out.ok = out.hierItems === 8 && out.defaultSel.gravity && !out.defaultSel.playerModel && out.playerSel.model && !out.playerSel.gravity && out.tabs.jsonAfter && !out.tabs.assetsAfter && out.mode3d.json === '3d' && out.stage.fits && out.mobile.noHScroll && out.persist.selAfterReload.includes('敵');

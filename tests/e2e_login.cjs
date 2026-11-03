@@ -11,7 +11,7 @@ if (!BASE || !PASSWORD) { console.error('AUTH_BASE と AUTH_PASSWORD が必要�
   const login = async pw => { await p.fill('#loginPw', pw); await p.click('#loginOk'); await p.waitForTimeout(900); };
 
   // 0) 新規環境(ゲームなし)で開く → ログインを促す → ログイン後に自動で最初のゲームができる
-  await p.goto(BASE + '/index.html?debug'); await p.waitForTimeout(1200);
+  await p.goto(BASE + '/index.html?debug&server=1'); await p.waitForTimeout(1200);
   check('fresh-dialog', await dlgOpen(), 'ログインダイアログが開かない');
   check('fresh-guide', (await p.textContent('#diag')).includes('ゲームがまだありません'), await p.textContent('#diag'));
   await login('wrong-password-xx'); check('wrong-pw', (await p.textContent('#loginErr')).includes('違います') && await dlgOpen(), await p.textContent('#loginErr'));

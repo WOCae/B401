@@ -1,6 +1,8 @@
 // アプリ本体: 状態管理・ダッシュボード・メインループ。
 // ゲーム定義 app.game は「検証済みJSON」だけを保持し、壊れた入力は受け付けず直前の状態を保つ。
-import { api, ApiError } from "./api.js";
+import { api as serverApi, ApiError } from "./api.js";
+import { LocalBackend } from "./localbackend.js";
+import { exportProject, importProject, downloadBlob } from "./project.js";
 import { validateGame, clone } from "./schema.js";
 import { diagnose } from "./diagnose.js";
 import { applyPatchOps, describeOp } from "./patch.js";
@@ -14,6 +16,10 @@ import { StageEditor } from "./stageeditor.js";
 import { buildInspector, initHierarchy, initTabs, initTheme, initFit } from "./editor.js";
 
 const $ = id => document.getElementById(id);
+// 保存先: 既定は「このブラウザ内(IndexedDB)」。サーバー(PHP+ログイン)に保存したいときだけ URL に ?server=1 を付ける
+const MODE = new URLSearchParams(location.search).has("server") ? "server" : "local";
+const api = MODE === "server" ? serverApi : new LocalBackend();
+const genId = () => (api.newGameId ? api.newGameId() : "g-" + Math.random().toString(16).slice(2, 10));
 const app = { schema: null, gameId: null, version: 0, game: null, engine: null, proposal: null, assets: null, assetVersions: {} };
 let assetsUI = null, modelSig = "", openTab = () => {}, editor = null;
 const keys = { l: 0, r: 0, j: 0, jp: false };
@@ -42,6 +48,7 @@ function setGame(raw, { restart = true, version } = {}) {
   syncUI();
   const ms = modelPathsOf(app.game);
   if (ms !== modelSig) { modelSig = ms; if (assetsUI) assetsUI.refresh(); }
+  renderBackup();
   if (editor) editor.sync(); // ステージ編集中に他の経路(元に戻す・JSON・提案)で変わったら取り込む
   return v;
 }
@@ -125,10 +132,44 @@ function renderDiag() {
  <div class="mute">計算上の目安です。AI生成ステージはこの検証に通るまで再生成します。</div>`;
 }
 
-/* ---------- ログイン(閲覧は公開・編集は要ログイン) ---------- */
+/* ---------- ファイルへの保存/読み込み(バックアップ・共有) ---------- */
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* 保存できなくても動く */ } };
+function renderBackup() { // ブラウザ内の自動保存だけだと、ブラウザのデータ消去で失われるため、ファイル保存の有無を示す
+  const el = $("backupState");
+  if (MODE !== "local" || !app.gameId) { el.textContent = ""; return; }
+  const ok = +lsGet("exported:" + app.gameId) === app.version;
+  el.textContent = ok ? "ファイル保存済み" : "● ファイル未保存"; el.className = ok ? "ok" : "warn";
+  el.title = ok ? "この状態はファイルに保存済みです" : "ブラウザの自動保存とは別に、ファイルにも保存しておくと安心です(保存ボタン / Ctrl+S)";
+}
+async function doSave() {
+  try {
+    const r = await exportProject(api, app.gameId);
+    downloadBlob(r.blob, r.filename); lsSet("exported:" + app.gameId, String(r.version)); renderBackup();
+    say(`保存しました: ${r.filename}(GLBも含みます)`);
+  } catch (e) { fail(e); }
+}
+async function doOpen(file) {
+  if (!file) return;
+  try {
+    if (file.size > 60 * 1024 * 1024) throw new Error("ファイルが大きすぎます(上限60MB)");
+    const id = await importProject(api, await file.text());
+    await refreshGames(id); await openGame(id);
+    say(`開きました: ${app.game.meta.title}(新しいゲームとして追加。元のゲームはそのまま残っています)`);
+  } catch (e) { say("開けませんでした: " + e.message, "err", 9000); }
+}
+$("saveBtn").onclick = doSave;
+$("openFile").onchange = e => { doOpen(e.target.files[0]); e.target.value = ""; };
+addEventListener("dragover", e => { if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault(); });
+addEventListener("drop", e => { const f = e.dataTransfer?.files?.[0]; if (f) { e.preventDefault(); doOpen(f); } });
+addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (app.gameId) doSave(); } });
+$("playBtn").onclick = () => { if (app.gameId) window.open(`play.html?game=${encodeURIComponent(app.gameId)}${MODE === "server" ? "&server=1" : ""}`, "_blank", "noopener"); };
+
+/* ---------- ログイン(サーバー保存モードのみ: 閲覧は公開・編集は要ログイン) ---------- */
 app.auth = { authenticated: false, configured: true, dev_open: false };
 function renderAuth() {
   const a = app.auth, st = $("authState");
+  if (a.local) { st.className = "edit"; st.textContent = "自動保存(このブラウザ内)"; $("authBtn").style.display = "none"; return; }
   st.className = a.authenticated ? "edit" : "view";
   st.textContent = a.dev_open ? "開発モード" : a.authenticated ? "編集できます" : a.configured ? "閲覧のみ" : "閲覧のみ(パスワード未設定)";
   $("authBtn").style.display = a.dev_open ? "none" : "";
@@ -266,17 +307,32 @@ async function refreshGames(select) {
 }
 async function openGame(id) {
   const r = await api.getGame(id);
-  app.gameId = id; app.proposal = null; showProposal();
+  app.gameId = id; app.proposal = null; showProposal(); lsSet("lastGame", id);
   modelSig = ""; setGame(r.game, { restart: true, version: r.version });
   if (assetsUI) await assetsUI.refresh();
 }
 $("gameSel").onchange = e => openGame(e.target.value).catch(fail);
-$("newGame").onclick = async () => {
-  const id = prompt("新しいゲームのID(英小文字・数字・-・_ 、40文字以内)", "game-" + Date.now().toString(36));
-  if (!id) return;
+$("newGame").onclick = async () => { // 初期ステージの新しいゲーム
+  const title = prompt("新しいゲームの名前", "新しいゲーム"); if (title === null) return;
   try {
-    const r = await api.createGame(id, app.game); // 今のゲームを複製して作成
-    await refreshGames(id); await openGame(r.game_id);
+    const g = JSON.parse(JSON.stringify(app.schema.defaultGame)); g.meta.title = title.trim().slice(0, 60) || g.meta.title;
+    const r = await api.createGame(genId(), g); await refreshGames(r.game_id); await openGame(r.game_id);
+  } catch (e) { fail(e); }
+};
+$("dupGame").onclick = async () => { // 複製(GLBも一緒に)。プロジェクトの書き出し→読み込みと同じ経路
+  try {
+    const out = await exportProject(api, app.gameId), id = await importProject(api, await out.blob.text());
+    const g = (await api.getGame(id)).game; g.meta.title = (g.meta.title + " のコピー").slice(0, 60);
+    await api.saveGame(id, g, null, "複製"); await refreshGames(id); await openGame(id); say("複製しました");
+  } catch (e) { fail(e); }
+};
+$("delGame").onclick = async () => { // ブラウザ保存モードのみ
+  if (!confirm(`「${app.game.meta.title}」を削除しますか?\nこのブラウザ内の保存データ(履歴・アップロードしたGLB)も消えます。ファイルに保存していない場合は元に戻せません。`)) return;
+  try {
+    const id = app.gameId; await api.deleteGame(id); lsSet("exported:" + id, "");
+    let { games } = await api.listGames();
+    if (!games.length) { await api.createGame(genId(), null); ({ games } = await api.listGames()); }
+    await refreshGames(games[0].game_id); await openGame(games[0].game_id); say("削除しました");
   } catch (e) { fail(e); }
 };
 
@@ -289,6 +345,7 @@ function ensure3d() {
   view.state = "loading";
   import("./render3d.js")
     .then(m => { view.r3d = new m.Renderer3D($("cv3"), {
+      urlOf: p => api.resolveUrl(p), // ブラウザ内に保存したGLBは Blob URL に解決する
       onWarn: msg => say(msg, "err", 9000),
       onModel: ({ kind, url, clips }) => {
         $("clips_" + kind).innerHTML = clips.map(c => `<option value="${esc(c)}">`).join("");
@@ -329,6 +386,8 @@ function loop(ts) {
 (async () => {
   try {
     bindInput(keys, $);
+    await api.init();
+    if (MODE === "server") document.body.classList.add("server-mode"); else document.body.classList.add("local-mode");
     await refreshAuth();
     app.schema = await api.getSchema();
     for (const { el, fields } of buildInspector(app.schema)) buildControls(el, fields); // 対象ごとのインスペクタ(スキーマから自動生成)
@@ -352,14 +411,17 @@ function loop(ts) {
     $("showHit").checked = app.showHit;
     $("showHit").onchange = e => { app.showHit = e.target.checked; try { localStorage.setItem("showHit", app.showHit ? "1" : "0"); } catch { /* 無視 */ } };
     let { games } = await api.listGames();
-    if (!games.length) { await api.createGame("demo", null); ({ games } = await api.listGames()); }
-    await refreshGames(games[0].game_id);
-    await openGame(games[0].game_id);
+    if (!games.length) { await api.createGame(MODE === "server" ? "demo" : null, null); ({ games } = await api.listGames()); }
+    const want = new URLSearchParams(location.search).get("game") || lsGet("lastGame");
+    const first = games.some(g => g.game_id === want) ? want : games[0].game_id;
+    await refreshGames(first);
+    await openGame(first);
+    if (MODE === "local" && !lsGet("introSeen")) { lsSet("introSeen", "1"); say("作業はこのブラウザに自動保存されます。「保存」でファイルにも書き出せます(バックアップ・共有用)", "info", 9000); }
     requestAnimationFrame(t => { last = t; loop(t); });
   } catch (e) {
     fail(e);
     $("diag").innerHTML = e.code === "unauthorized" || e.code === "auth_not_configured"
       ? '<span class="warn">ゲームがまだありません。ログインすると最初のゲームを作成します(パスワード未設定の場合は README の「認証の設定」を参照)。</span>'
-      : '<span class="warn">サーバーに接続できないため開始できません。PHPが動作している環境で開いてください。</span>';
+      : '<span class="warn">開始できません: ' + esc(e.message || String(e)) + (MODE === "server" ? "(サーバー保存モードにはPHPが必要です)" : "") + "</span>";
   }
 })();

@@ -1,23 +1,37 @@
 # プラットフォーマー作成ツール
 
-ゲームを「コード」ではなく **ゲーム定義JSON** として持つ、横スクロールのプラットフォーマー作成サイト。
-サーバーは PHP のみ(Node.js・常駐プロセス・ビルド工程は不要)。
+ゲームを「コード」ではなく **ゲーム定義JSON** として持つ、横スクロールのプラットフォーマー作成ツール。
+**ブラウザだけで動く**(ビルド不要・アカウント不要)。静的ファイルを置くだけで公開でき、利用者ごとのデータは各自のブラウザに保存される。
+
+## 使い方(一般公開向け: ブラウザ保存が既定)
+- **開くだけ**: `index.html` を開く。作ったゲーム(履歴・アップロードしたGLB)は自動でこのブラウザ(IndexedDB)に保存され、次に開くと続きから使える。ログイン・サーバーは不要。
+- **ファイルに保存/開く**: ツールバーの「保存」(Ctrl+S)で、ゲームと使っているGLBを1ファイル(`.pfmk.json`)に書き出す。「開く」または画面へドラッグ&ドロップで読み込む(新しいゲームとして追加され、元のゲームは消えない)。
+  ブラウザのデータを消すと自動保存も消えるため、ファイル保存がバックアップになる(未保存のときは「● ファイル未保存」と表示)。
+- **共有**: プロジェクトファイルを渡す、またはどこかに置いて `play.html?src=<ファイルのURL>` を教える(別のサイトに置く場合はCORSの許可が必要。GitHub の raw 等)。
+  `play.html` は遊ぶ専用(エディタなし)。「エディタで開く」で自分のブラウザにコピーして改造できる。ファイルをドラッグ&ドロップしても遊べる。
+- **公開(ホスティング)**: このフォルダをそのまま静的ホスティング(GitHub Pages・レンタルサーバー・どこでも)に置くだけ。PHPは不要。
+- 読み込むファイルは必ずスキーマ検証する(範囲外は丸め、壊れたJSON・不正なGLBは取り込まない)。ユーザーのスクリプトは一切実行しない(データはJSONとGLBだけ)。
+
+### サーバー保存モード(任意・管理者向け)
+URL に `?server=1` を付けると、PHP+管理者ログインでサーバー上に保存するモードになる(下の「認証の設定」「公開時の設定」)。
+サイトの持ち主が自分のサーバーでゲームを管理したい場合や、将来のMCP/AI連携(PHP中継)を使う場合のための構成で、一般の利用者には不要。
 
 ## 構成
 ```
-index.html / css/ / js/      フロント(素のES Modules)
+index.html play.html css/ js/   フロント(素のES Modules・ビルドなし)
   engine.js                  ゲームロジック(DOM非依存・固定タイムステップ)
-  schema.js diagnose.js patch.js   検証・診断・JSON差分(PHP側と同じ規則)
+  schema.js diagnose.js patch.js glb.js   検証・診断・JSON差分・GLB検査(PHP側と同じ規則)
   render2d.js render3d.js hud.js   描画(2D canvas / Three.js)とHUD。render.mode で切替
-  main.js suggest.js api.js input.js   ダッシュボード/提案/APIクライアント/入力
-schema/game.schema.json      検証ルールの唯一の定義(JSもPHPもこれを読む)
+  main.js suggest.js input.js editor.js stageeditor.js assets.js level.js   エディタ本体
+  localbackend.js            ブラウザ保存(IndexedDB): ゲーム・履歴・提案・GLB。PHP APIと同じメソッド名
+  project.js                 プロジェクトファイル(.pfmk.json)の書き出し/読み込み
+  play.js                    遊ぶ専用ページ
+  api.js                     サーバー保存モード用のAPIクライアント
+schema/game.schema.json      検証ルールの唯一の定義(JS・PHPともこれを読む)
 vendor/three/                Three.js r187 をローカル配置(CDN不使用。import mapで読み込み)
-api/index.php                HTTPの薄いラッパー
-api/lib/tools.php            UI非依存のツール関数(将来MCPにそのまま包める)
-api/lib/{schema,storage}.php 検証・差分適用 / JSONファイル保存(flockで排他)
-games/<id>/                  game.json, state.json, history/, proposals/ (.htaccessで直接アクセス禁止)
+api/ games/ uploads/         サーバー保存モード用(PHP。ブラウザ保存モードでは使わない)
 reference/                   元の2Dプロトタイプ(挙動の基準)
-tests/                       JS↔PHP一致テスト、元プロトタイプとのエンジン等価テスト
+tests/                       各種テスト(下記)
 ```
 
 ## 画面の構成(エディタ風UI)

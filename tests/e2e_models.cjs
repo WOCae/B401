@@ -6,7 +6,7 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   const p = await b.newPage({ viewport: { width: 1100, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errs.push(m.text()); });
-  await p.goto(BASE + '/index.html?debug&showall'); await p.waitForSelector('#c_render_mode'); await p.waitForTimeout(400);
+  await p.goto(BASE + '/index.html?debug&showall&server=1'); await p.waitForSelector('#c_render_mode'); await p.waitForTimeout(400);
   const out = {}; const J = async () => JSON.parse(await p.inputValue('#json'));
   const pos = () => p.evaluate(() => { const s = window.__app.engine.S; return [Math.round(s.p.x), Math.round(s.p.y)]; });
   const status = () => p.textContent('#status');

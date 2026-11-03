@@ -38,6 +38,10 @@ async function upload(game_id, file, replace) {
 }
 
 export const api = {
+  mode: "server",
+  init: async () => {},
+  resolveUrl: async path => path, // サーバー版: GLBは静的ファイルとしてそのまま配信される
+  getAssetBytes: async path => { const r = await fetch(path); if (!r.ok) throw new ApiError(`${path} を読み込めません`, "not_found", r.status); return r.arrayBuffer(); },
   authStatus: () => call("auth_status"),
   login: password => call("login", { password }, true),
   logout: () => call("logout", {}, true),

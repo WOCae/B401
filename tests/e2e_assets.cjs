@@ -9,7 +9,7 @@ const SAMPLES = path.join(__dirname, '..', 'assets', 'samples');
   const errs = []; p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errs.push(m.text()); });
   p.on('dialog', d => d.accept());
-  await p.goto(BASE + '/index.html?debug&showall'); await p.waitForSelector('#assetList'); await p.waitForTimeout(500);
+  await p.goto(BASE + '/index.html?debug&showall&server=1'); await p.waitForSelector('#assetList'); await p.waitForTimeout(500);
   const out = {}; const J = async () => JSON.parse(await p.inputValue('#json'));
   const gid = await p.inputValue('#gameSel');
   await p.selectOption('#c_render_mode', '3d');

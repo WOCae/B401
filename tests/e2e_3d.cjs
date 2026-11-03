@@ -4,7 +4,7 @@ const S = (process.env.OUT || '/tmp');
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: 1100, height: 900 } });
   const errs = []; p.on('pageerror', e => errs.push('pageerror: ' + e.message)); p.on('console', m => { if (['error', 'warning'].includes(m.type())) errs.push(m.type() + ': ' + m.text()); });
-  await p.goto('' + (process.env.BASE || 'http://127.0.0.1:8099') + '/index.html?debug&showall'); await p.waitForSelector('#c_physics_gravity'); await p.waitForTimeout(400);
+  await p.goto('' + (process.env.BASE || 'http://127.0.0.1:8099') + '/index.html?debug&showall&server=1'); await p.waitForSelector('#c_physics_gravity'); await p.waitForTimeout(400);
   const J = async () => JSON.parse(await p.inputValue('#json'));
   const setJson = async o => { await p.fill('#json', JSON.stringify(o)); await p.click('#applyjson'); await p.waitForTimeout(600); };
   const base = await J();

@@ -5,7 +5,7 @@ const OUT = process.env.OUT || '/tmp', BASE = process.env.BASE || 'http://127.0.
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/404|Failed to load/.test(m.text())) errs.push(m.text()); });
-  await p.goto(BASE + '/index.html?debug'); await p.waitForSelector('#editBtn'); await p.waitForTimeout(700);
+  await p.goto(BASE + '/index.html?debug&server=1'); await p.waitForSelector('#editBtn'); await p.waitForTimeout(700);
   const out = {}; const ok = [];
   const level = () => p.evaluate(() => window.__app.game.level);
   const hist = () => p.evaluate(async id => (await (await fetch('api/index.php?tool=list_history&game_id=' + id)).json()).result.history.length, 'demo');

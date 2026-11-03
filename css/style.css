@@ -114,3 +114,5 @@ dialog h2{margin:0 0 6px;font-size:16px}
 dialog input[type=password]{width:100%;padding:8px}
 #loginErr{min-height:1.4em;margin:6px 0 0}
 #authState.edit{color:var(--ok)}#authState.view{color:var(--warn)}
+.local-mode .server-only,.server-mode .local-only{display:none!important}
+#backupState{margin-left:6px;white-space:nowrap}
