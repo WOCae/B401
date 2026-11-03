@@ -11,7 +11,8 @@ cleanup() { kill $SRV 2>/dev/null; rm -rf "$DATA" uploads/t-* uploads/demo; }
 trap cleanup EXIT
 sleep 1
 FAIL=0
-run() { echo "== $1"; shift; "$@" || { echo "!! 失敗: $*"; FAIL=1; }; }
+fresh() { rm -rf "$DATA/demo" uploads/demo; } # 画面テストは毎回、初期状態のゲームから始める(互いに干渉させない)
+run() { echo "== $1"; shift; case "$1" in bash) fresh;; esac; "$@" || { echo "!! 失敗: $*"; FAIL=1; }; }
 run "JS↔PHP 検証の一致"            tests/parity.sh
 run "エンジン等価(元プロトタイプ)"  node tests/engine_equivalence.mjs
 run "ステージ編集の純粋関数"        node tests/level_ops.mjs
