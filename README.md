@@ -67,9 +67,39 @@ node tests/engine_equivalence.mjs     # 新エンジン == reference のロジ�
 - テスト用GLBは `node tools/make_sample_glbs.mjs` で生成(外部ライブラリ不要。`assets/samples/`)。
 - サーバーの `validate_game` / `save_game` は参照GLBの存在と `glTF` ヘッダを確認して警告を返す(`asset_issues`)。
 
+## アセット管理とアップロード(段階4)
+`uploads/<game_id>/<名前>.glb` に保存し、静的ファイルとして配信する(JSONの `model` は `uploads/<game_id>/…glb` を指す)。
+- 受け付けるのは **自己完結のGLB(.glb、glTF 2.0)だけ**、1ファイル5MBまで・1ゲーム30ファイル/40MBまで(`schema/game.schema.json` の `uploads`)。
+- サーバーの検証(`api/lib/assets.php`): 拡張子・申告MIME・`finfo`によるMIME・サイズ・GLB構造(ヘッダ/チャンク長/JSON/BIN範囲)・外部ファイル参照の禁止・
+  未対応の圧縮拡張(Draco/Meshopt/Basis)が必須のものを拒否・頂点数上限・PHPコード断片の混入拒否。
+- ファイル名はサニタイズ(小文字英数と`-_`のみ+乱数)。元の名前は使わない。差し替えは同名のまま中身を入れ替える(JSONの参照が切れない)。
+- `uploads/.htaccess` でスクリプト実行を禁止し、`.glb` 以外は配信しない。アップロードAPIは独自ヘッダ `X-Requested-With` を必須にしてCSRFを防ぐ。
+- 使用中のファイルは削除できない。ゲームが参照するGLBの有無・ヘッダは `validate_game` / `save_game` / `apply_patch` の警告(`asset_*`)で分かる。
+- ツール: `list_assets`(AIに公開可)、`upload_asset` / `delete_asset`(人のみ)。
+- 画面: 「アセット管理」でアップロード・一覧(アニメ名・頂点数・使用箇所)・割り当て(プレイヤー/敵/タイル)・差し替え・削除。差し替え後は更新時刻でキャッシュが切り替わる。
+
+### 公開時の設定
+- **Apache系**: `uploads/.htaccess` と `games/.htaccess` が効くよう `AllowOverride All`(少なくとも FileInfo, Options, AuthConfig, Limit)が必要。
+- **nginx**: `.htaccess` は効かない。`location ^~ /uploads/ { location ~ \.php$ { return 403; } }` と `location ^~ /games/ { deny all; }` を設定する。
+- **PHP**: `upload_max_filesize` と `post_max_size`(目安 6M / 8M)。`api/.user.ini` / `api/.htaccess` に例がある(レンタルサーバーによっては管理画面で設定)。
+- `games/` と `uploads/` は書き込み可にする。認証は未実装(公開前に書き込み系ツールへアクセス制御を入れること)。
+
+## タイルのモデルとAI提案(段階5)
+`assets.tiles` に `#` `^` `o` `G` ごとの設定(`model` / `color` / `scale` / `yaw` / `offsetX,Y,Z`)。未指定ならプリミティブ。
+```json
+{ "assets": { "tiles": { "#": { "model": "uploads/demo/block-1a2b3c.glb", "color": null, "scale": 1 },
+                         "^": { "model": null, "color": "#4a4f57" } } } }
+```
+- タイル用GLBの原点は「タイルの下端中央」(1タイル=1単位)。GLBのメッシュも種類ごとに InstancedMesh にまとめる(スキン付きのみのモデルは不可→プリミティブ)。
+- 見た目だけが変わる。当たり判定(`#` は1タイルの壁)は変わらない。
+- AI(規則ベースのデモ)の提案は、ゲーム性・カメラ・アセットのどれも **JSON差分(ops)として `propose_patch` に保存 → 人が「適用」したときだけ `apply_patch`** で反映される:
+  「3Dで見下ろし気味に」「カメラを寄せる/引く」「モデルを自動で割り当て」「アニメ名を自動割り当て」「ヒットボックスをモデルに合わせる」など。
+- 外部のAI API は未接続(今回は規則ベース)。接続するときはブラウザにキーを出さず、PHPの中継から `propose_patch` に差分を渡す設計。
+
 ## 画面テスト(Playwright が必要)
 ```bash
-node tests/e2e_dashboard.cjs; node tests/e2e_3d.cjs; node tests/e2e_no_webgl.cjs; node tests/e2e_models.cjs; node tests/e2e_broken_glb.cjs   # BASE=http://... OUT=出力先
+tests/run_all.sh        # 上のテストと画面テストを一括実行(NO_E2E=1 でブラウザのテストを省略)
+# 個別: node tests/e2e_dashboard.cjs / e2e_3d / e2e_no_webgl / e2e_models / e2e_broken_glb / e2e_assets   (BASE=http://... OUT=出力先)
 ```
 
 ## 現状の注意

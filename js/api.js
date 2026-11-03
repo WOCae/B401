@@ -19,7 +19,21 @@ async function call(tool, args = {}, post = false) {
   return j.result;
 }
 
+async function upload(game_id, file, replace) {
+  const fd = new FormData();
+  fd.append("game_id", game_id); if (replace) fd.append("replace", replace); fd.append("file", file, file.name);
+  let res;
+  try { res = await fetch(`${BASE}?tool=upload_asset`, { method: "POST", body: fd, headers: { "X-Requested-With": "platformer-maker" } }); }
+  catch { throw new ApiError("サーバーに接続できません", "network", 0); }
+  let j; try { j = await res.json(); } catch { throw new ApiError("サーバーの応答を読み取れません(アップロード上限を超えた可能性があります)", "bad_response", res.status); }
+  if (!j.ok) throw new ApiError(j.error?.message || "エラー", j.error?.code, res.status, j.error?.details);
+  return j.result;
+}
+
 export const api = {
+  listAssets: game_id => call("list_assets", { game_id }),
+  uploadAsset: upload,
+  deleteAsset: (game_id, name) => call("delete_asset", { game_id, name }, true),
   getSchema: () => call("get_schema"),
   listGames: () => call("list_games"),
   getGame: game_id => call("get_game", { game_id }),

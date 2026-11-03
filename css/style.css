@@ -42,3 +42,8 @@ ul.diff li.dim{color:var(--mute)}
 details{margin:4px 0}summary{cursor:pointer;font-weight:600;font-size:13px}
 .chk{display:flex;gap:6px;align-items:center;margin:2px 0 6px}
 code{font-size:12px}
+.asset{border-top:1px solid var(--line);padding:6px 0}
+.asset .bar{margin-top:4px;align-items:center}
+.tag{font-size:11px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:0 6px;color:var(--mute)}
+.btnlike{display:inline-block;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 10px;cursor:pointer}
+.suggroup{margin:6px 0 2px;font-size:12px;color:var(--mute)}

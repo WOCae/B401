@@ -12,12 +12,15 @@ function registry(): array
         'list_games'    => ['fn' => 'tool_list_games',    'write' => false, 'ai' => true],
         'get_game'      => ['fn' => 'tool_get_game',      'write' => false, 'ai' => true],
         'list_history'  => ['fn' => 'tool_list_history',  'write' => false, 'ai' => true],
+        'list_assets'   => ['fn' => 'tool_list_assets',   'write' => false, 'ai' => true],
         'validate_game' => ['fn' => 'tool_validate_game', 'write' => false, 'ai' => true],
         'propose_patch' => ['fn' => 'tool_propose_patch', 'write' => true,  'ai' => true],
         'create_game'   => ['fn' => 'tool_create_game',   'write' => true,  'ai' => false],
         'save_game'     => ['fn' => 'tool_save_game',     'write' => true,  'ai' => false],
         'apply_patch'   => ['fn' => 'tool_apply_patch',   'write' => true,  'ai' => false],
         'discard_patch' => ['fn' => 'tool_discard_patch', 'write' => true,  'ai' => false],
+        'upload_asset'  => ['fn' => 'tool_upload_asset',  'write' => true,  'ai' => false, 'multipart' => true],
+        'delete_asset'  => ['fn' => 'tool_delete_asset',  'write' => true,  'ai' => false],
         'undo_game'     => ['fn' => 'tool_undo_game',     'write' => true,  'ai' => false],
     ];
 }
@@ -26,16 +29,13 @@ function registry(): array
 function asset_issues(array $game): array
 {
     $out = [];
-    foreach (['player', 'enemy'] as $who) {
-        $path = $game['assets'][$who]['model'] ?? null;
-        if (!is_string($path)) continue;
+    foreach (model_refs($game) as $path => $uses) {
         $file = PM_ROOT . '/' . $path;
-        $p = "assets.{$who}.model";
-        if (!is_file($file)) { $out[] = issue($p, 'asset_missing', "{$path} が見つかりません(プリミティブで表示します)"); continue; }
+        if (!is_file($file)) { foreach ($uses as $u) $out[] = issue($u, 'asset_missing', "{$path} が見つかりません(プリミティブで表示します)"); continue; }
         $fh = fopen($file, 'rb');
         $head = $fh ? fread($fh, 4) : '';
         if ($fh) fclose($fh);
-        if ($head !== 'glTF') $out[] = issue($p, 'asset_invalid', "{$path} はGLBファイルではありません");
+        if ($head !== 'glTF') foreach ($uses as $u) $out[] = issue($u, 'asset_invalid', "{$path} はGLBファイルではありません");
     }
     return $out;
 }

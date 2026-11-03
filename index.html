@@ -34,11 +34,26 @@
 <p class="mute">表示モード「3D」にするとThree.jsで描画します。ゲームのロジック(物理・当たり判定)は2Dのままで、見た目だけが変わります。</p>
 </div>
 <div class="card">
+<h2>アセット管理(GLB)</h2>
+<div class="bar"><input type="file" id="assetFile" accept=".glb,model/gltf-binary"><button id="assetUp" class="pri">アップロード</button></div>
+<div id="assetMsg" class="mute" role="status"></div>
+<div id="assetList"></div>
+<p class="mute">GLB(.glb、自己完結・圧縮なし)のみ、1ファイル5MBまで。「割り当て」でプレイヤー・敵・タイルのモデルに設定できます。使用中のファイルは削除できません。</p>
+</div>
+<div class="card">
 <h2>キャラのモデル(GLB)</h2>
 <details open><summary>プレイヤー</summary><div id="mc_player"></div></details>
 <details><summary>敵</summary><div id="mc_enemy"></div></details>
 <div id="modelinfo" class="mute"></div>
 <p class="mute">モデルのパスは <code>assets/samples/player.glb</code> のように指定します(空ならプリミティブ)。スケール1=1タイル(32px)、正面は+Zです。読み込めない場合はプリミティブのまま動きます。</p>
+</div>
+<div class="card">
+<h2>タイルのモデル(GLB)</h2>
+<details><summary>ブロック(#)</summary><div id="tc_wall"></div></details>
+<details><summary>トゲ(^)</summary><div id="tc_spike"></div></details>
+<details><summary>コイン(o)</summary><div id="tc_coin"></div></details>
+<details><summary>ゴール(G)</summary><div id="tc_goal"></div></details>
+<p class="mute">タイル用モデルの原点は「タイルの下端中央」(1タイル=1単位)。見た目だけが変わり、当たり判定(ブロックは1タイルの壁)はそのままです。未指定・読み込み失敗ならプリミティブで表示します。</p>
 </div>
 <div class="card">
 <h2>ヒットボックス(当たり判定)</h2>

@@ -10,9 +10,10 @@ const FOV = 2 * Math.atan(0.5) * 180 / Math.PI; // 透視投影: 距離=D のと
 const LIGHTS = { default: [0.7, 0.45], bright: [0.95, 0.6], dim: [0.3, 0.25] }; // [環境光, 平行光]
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const tmp = new THREE.Object3D();
+const PM = new THREE.Matrix4(), MM = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S3 = new THREE.Vector3(), E = new THREE.Euler();
 
 function disposeTree(o) {
-  if (o.userData && o.userData.shared) return; // GLBキャッシュ由来のジオメトリ/マテリアルは共有なので破棄しない
+  if (o.userData && o.userData.shared) { if (o.isInstancedMesh) o.dispose(); return; } // GLBキャッシュ由来のジオメトリ/マテリアルは共有なので破棄しない
   o.children.forEach(disposeTree);
   if (o.geometry) o.geometry.dispose();
   if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose());
@@ -107,7 +108,8 @@ export class Renderer3D {
   /** hooks: { onWarn(msg), onModel({kind,url,clips}) } */
   constructor(canvas, hooks = {}) {
     this.onWarn = hooks.onWarn; this.onModel = hooks.onModel; this.showHitbox = false;
-    this.loader = new GLTFLoader(); this.cache = new Map(); this.warnedMsgs = new Set();
+    this.loader = new GLTFLoader(); this.cache = new Map(); this.ready = new Map(); this.failed = new Set(); this.warnedMsgs = new Set();
+    this.versions = {}; this.versionsJson = "{}"; this.dirty = false; this.recs = [];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); // WebGL非対応なら例外 → 呼び出し側で2Dに戻す
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(VW, VH, false);
@@ -124,46 +126,119 @@ export class Renderer3D {
   dispose() { this.stage && disposeTree(this.stage); this.chars && disposeTree(this.chars); this.renderer.dispose(); }
 
   /* ---------- ステージ(levelからメッシュを生成。同種タイルは InstancedMesh) ---------- */
+  // 各タイル種(# ^ o G)は「GLBがあればそのメッシュ、なければプリミティブ」を InstancedMesh にまとめる。
+  // GLBタイルの原点は「タイルの下端中央」。見た目だけで、当たり判定(# は1タイルの壁)は変わらない。
   buildStage(eng) {
     if (this.stage) { this.scene.remove(this.stage); disposeTree(this.stage); }
-    const { def, grid, W, H } = eng, depth = def.render.depth, g = new THREE.Group();
+    const { def, grid, W, H } = eng, depth = def.render.depth, tiles = def.assets.tiles, g = new THREE.Group();
     const cells = { "#": [], "^": [], o: [], G: [], cap: [] };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
       if (c === "#") { cells["#"].push([x, y]); if (!eng.solid(x, y - 1)) cells.cap.push([x, y]); }
       else if (c === "^" || c === "o" || c === "G") cells[c].push([x, y]);
     }
-    const inst = (geo, color, list, place, extra = {}) => {
-      if (!list.length) return null;
-      const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color, ...extra }), list.length);
-      list.forEach(([x, y], i) => { tmp.position.set(0, 0, 0); tmp.rotation.set(0, 0, 0); tmp.scale.set(1, 1, 1); place(tmp, x, H - y - 0.5); tmp.updateMatrix(); m.setMatrixAt(i, tmp.matrix); });
-      m.instanceMatrix.needsUpdate = true; g.add(m); return m;
+    const recs = [];
+    /** meshes: [{geometry, material, base:Matrix4, shared}]  pos(x,y)→[X,Y,Z]  cfg: {scale,yaw} */
+    const add = (list, meshes, pos, cfg, spin = false) => {
+      if (!list.length) return;
+      const rec = { list, spin, pos, scale: cfg.scale, yaw: rad(cfg.yaw), items: [] };
+      for (const m of meshes) {
+        const im = new THREE.InstancedMesh(m.geometry, m.material, list.length);
+        if (m.shared) im.userData.shared = true;
+        g.add(im); rec.items.push({ im, base: m.base });
+      }
+      recs.push(rec); this.fill(rec, 0, null);
     };
-    inst(new THREE.BoxGeometry(1, 1, depth), def.theme.ground, cells["#"], (o, x, cy) => o.position.set(x + 0.5, cy, 0));
-    inst(new THREE.BoxGeometry(1.002, 0.2, depth + 0.02), 0x4fa34f, cells.cap, (o, x, cy) => o.position.set(x + 0.5, cy + 0.5 - 0.09, 0));
-    const cone = new THREE.ConeGeometry(0.62, 0.85, 4); cone.rotateY(Math.PI / 4);
-    inst(cone, 0x4a4f57, cells["^"], (o, x, cy) => { o.position.set(x + 0.5, cy - 0.5 + 0.425, 0); o.scale.set(1, 1, depth); });
-    inst(new THREE.BoxGeometry(0.125, 2, 0.125), 0x555555, cells.G, (o, x, cy) => o.position.set(x + 0.5, cy, 0));
-    const flag = new THREE.Shape(); flag.moveTo(0, 0); flag.lineTo(0.6, -0.31); flag.lineTo(0, -0.62);
-    inst(new THREE.ShapeGeometry(flag), 0xd9342b, cells.G, (o, x, cy) => o.position.set(x + 0.56, cy + 1, 0), { side: THREE.DoubleSide });
-    const coinGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.08, 20); coinGeo.rotateX(Math.PI / 2);
-    this.coinMesh = inst(coinGeo, 0xf5b800, cells.o, (o, x, cy) => o.position.set(x + 0.5, cy, 0), { emissive: 0x5a4200 });
-    this.coinCells = cells.o;
-    this.stage = g; this.scene.add(g);
+    const mat = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+    const I = new THREE.Matrix4(), flat = { scale: 1, yaw: 0 };
+    const prim = (geometry, material, base = I) => [{ geometry, material, base }];
+    const at = sym => { // 位置合わせオフセット込みの配置関数(GLB用)
+      const t = tiles[sym]; return (x, y) => [x + 0.5 + t.offsetX / T, H - y - 1 + t.offsetY / T, t.offsetZ / T];
+    };
+    const col = (sym, dflt) => tiles[sym].color || dflt;
+    // GLBが読み込み済みならそのメッシュ群、未読込/失敗/メッシュ無しなら null(→プリミティブ)
+    const modelMeshes = sym => {
+      const url = tiles[sym].model; if (!url) return null;
+      const gl = this.readyModel(url); if (!gl) return null;
+      gl.scene.updateMatrixWorld(true);
+      const out = [];
+      gl.scene.traverse(o => { if (o.isMesh && !o.isSkinnedMesh) out.push({ geometry: o.geometry, material: o.material, base: o.matrixWorld.clone(), shared: true }); });
+      if (!out.length) { this.warn(`${url}: 描画できるメッシュがありません(スキン付きのみ等)。プリミティブで表示します`); return null; }
+      return out;
+    };
+    const place = (sym, list, primFn, spin = false) => {
+      const mm = modelMeshes(sym);
+      if (mm) add(list, mm, at(sym), tiles[sym], spin);
+      else primFn();
+    };
+    const SC = (x, y, z) => new THREE.Matrix4().makeScale(x, y, z);
+    place("#", cells["#"], () => {
+      add(cells["#"], prim(new THREE.BoxGeometry(1, 1, depth), mat(col("#", def.theme.ground))), (x, y) => [x + 0.5, H - y - 0.5, 0], flat);
+      add(cells.cap, prim(new THREE.BoxGeometry(1.002, 0.2, depth + 0.02), mat(0x4fa34f)), (x, y) => [x + 0.5, H - y - 0.5 + 0.5 - 0.09, 0], flat);
+    });
+    place("^", cells["^"], () => {
+      const cone = new THREE.ConeGeometry(0.62, 0.85, 4); cone.rotateY(Math.PI / 4);
+      add(cells["^"], prim(cone, mat(col("^", 0x4a4f57)), SC(1, 1, depth)), (x, y) => [x + 0.5, H - y - 1 + 0.425, 0], flat);
+    });
+    place("G", cells.G, () => {
+      add(cells.G, prim(new THREE.BoxGeometry(0.125, 2, 0.125), mat(0x555555)), (x, y) => [x + 0.5, H - y - 0.5, 0], flat);
+      const flag = new THREE.Shape(); flag.moveTo(0, 0); flag.lineTo(0.6, -0.31); flag.lineTo(0, -0.62);
+      add(cells.G, prim(new THREE.ShapeGeometry(flag), mat(col("G", 0xd9342b), { side: THREE.DoubleSide })), (x, y) => [x + 0.56, H - y - 0.5 + 1, 0], flat);
+    });
+    place("o", cells.o, () => {
+      const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.08, 20); geo.rotateX(Math.PI / 2);
+      add(cells.o, prim(geo, mat(col("o", 0xf5b800), { emissive: 0x5a4200 })), (x, y) => [x + 0.5, H - y - 0.5, 0], flat, true);
+    }, true);
+    this.recs = recs; this.stage = g; this.scene.add(g);
+  }
+
+  /** 1種類のタイルの全インスタンス行列を更新(コインは回転・取得済みは非表示) */
+  fill(rec, t, got) {
+    rec.list.forEach(([x, y], i) => {
+      const hidden = got && rec.spin && got[x + "," + y];
+      const [px, py, pz] = rec.pos(x, y);
+      E.set(0, rec.yaw + (rec.spin ? t * 3 + x : 0), 0); Q.setFromEuler(E);
+      PM.compose(V.set(px, py, pz), Q, S3.set(hidden ? 0 : rec.scale, hidden ? 0 : rec.scale, hidden ? 0 : rec.scale));
+      for (const it of rec.items) { MM.multiplyMatrices(PM, it.base); it.im.setMatrixAt(i, MM); }
+    });
+    for (const it of rec.items) it.im.instanceMatrix.needsUpdate = true;
   }
 
   warn(msg) { if (this.warnedMsgs.has(msg)) return; this.warnedMsgs.add(msg); this.onWarn && this.onWarn(msg); }
-  /** GLBを読み込む(URLごとにキャッシュ)。失敗は1回だけ通知し、呼び出し側はプリミティブのまま続行する */
+  /** GLBを読み込む(URL+版ごとにキャッシュ)。失敗は1回だけ通知し、呼び出し側はプリミティブのまま続行する */
   loadModel(url) {
-    if (!this.cache.has(url)) {
-      this.cache.set(url, this.loader.loadAsync(url).then(g => {
+    const key = this.keyOf(url);
+    if (!this.cache.has(key)) {
+      this.cache.set(key, this.loader.loadAsync(key).then(g => {
         if (!g.scene) throw new Error("シーンがありません");
+        this.ready.set(key, g); this.dirty = true; // タイル用に使うステージの作り直しを促す
         return g;
-      }).catch(e => { this.warn(`モデルを読み込めません: ${url}(${e && e.message ? e.message : "不正なGLBか、ファイルがありません"})`); throw e; }));
+      }).catch(e => { this.failed.add(key); this.warn(`モデルを読み込めません: ${url}(${e && e.message ? e.message : "不正なGLBか、ファイルがありません"})`); throw e; }));
     }
-    return this.cache.get(url);
+    return this.cache.get(key);
   }
-  invalidate(url) { this.cache.delete(url); for (const m of [...this.warnedMsgs]) if (m.includes(url)) this.warnedMsgs.delete(m); }
+  /** URL + ?v=更新時刻(アップロードで差し替えたら別URLとして再取得される) */
+  keyOf(url) { const v = this.versions[url]; return v ? `${url}?v=${v}` : url; }
+  /** 読み込み済みなら gltf、未読込なら読み込みを開始して null、失敗済みも null */
+  readyModel(url) {
+    const key = this.keyOf(url);
+    if (this.ready.has(key)) return this.ready.get(key);
+    if (!this.failed.has(key) && !this.cache.has(key)) this.loadModel(url).catch(() => {});
+    return null;
+  }
+  setVersions(map) { const j = JSON.stringify(map); if (j !== this.versionsJson) { this.versionsJson = j; this.versions = map; this.dirty = true; } }
+  invalidate(url) { for (const m of [...this.warnedMsgs]) if (m.includes(url)) this.warnedMsgs.delete(m); }
+  /** プレイヤー/敵のモデルの大きさ(px)。ヒットボックス提案に使う。未読込なら null */
+  getModelBounds(kind) {
+    const a = kind === "player" ? this.player : this.enemies && this.enemies[0];
+    if (!a || !a.wrapper) return null;
+    const keep = a.facing.rotation.y; a.facing.rotation.y = 0; // 向きの回転で箱が膨らまないよう正面で測る
+    a.anchor.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(a.wrapper), sz = b.getSize(new THREE.Vector3());
+    a.facing.rotation.y = keep;
+    return { w: Math.max(sz.x, sz.z) * T, h: sz.y * T };
+  }
+  getClips(kind) { const a = kind === "player" ? this.player : this.enemies && this.enemies[0]; return a ? a.clips.map(c => c.name) : []; }
 
   /* ---------- キャラ(プレイヤー・敵) ---------- */
   buildChars(eng) {
@@ -183,10 +258,13 @@ export class Renderer3D {
     const def = eng.def, R = def.render, S = eng.S, H = eng.H, W = eng.W, A = def.assets;
     this.t += dt;
     // 作り直しが必要な変更だけをシグネチャに入れる(スケール・向き・オフセット等は毎フレーム反映)
-    const sig = JSON.stringify([R.depth, def.theme.ground, def.theme.player, A.player.primitive, A.enemy.primitive, A.player.model, A.enemy.model]);
+    const sig = JSON.stringify([A.player.primitive, A.enemy.primitive, A.player.model, A.enemy.model, def.theme.player, this.versionsJson]);
+    const stageSig = JSON.stringify([R.depth, def.theme.ground, A.tiles, this.versionsJson, this.ready.size]);
     const levelChanged = this.levelRef !== def.level || this.eng !== eng;
-    if (levelChanged || sig !== this.sig) { this.buildStage(eng); this.buildChars(eng); this.levelRef = def.level; this.eng = eng; this.sig = sig; this.cam = null; }
+    if (levelChanged || sig !== this.sig) { this.buildStage(eng); this.buildChars(eng); this.levelRef = def.level; this.eng = eng; this.sig = sig; this.stageSig = stageSig; this.cam = null; }
+    else if (stageSig !== this.stageSig || this.dirty) { this.buildStage(eng); this.stageSig = stageSig; }
     else if (this.sRef !== S) this.buildChars(eng); // 死亡・リスタートで敵が復活したとき
+    this.dirty = false;
 
     const p = S.p, ph = def.physics;
     if (!this.pFace) this.pFace = 1;
@@ -200,14 +278,7 @@ export class Renderer3D {
     box(this.hitP, p); S.en.forEach((e, i) => { box(this.hitE[i], e); this.hitE[i].visible = this.showHitbox && e.alive; });
 
     // コイン(回転・取得済みは非表示)
-    if (this.coinMesh) {
-      this.coinCells.forEach(([x, y], i) => {
-        const got = S.got[x + "," + y];
-        tmp.position.set(x + 0.5, H - y - 0.5, 0); tmp.rotation.set(0, this.t * 3 + x, 0); tmp.scale.setScalar(got ? 0 : 1); tmp.updateMatrix();
-        this.coinMesh.setMatrixAt(i, tmp.matrix);
-      });
-      this.coinMesh.instanceMatrix.needsUpdate = true;
-    }
+    for (const rec of this.recs) if (rec.spin) this.fill(rec, this.t, S.got);
 
     // カメラ
     const C = R.camera, visH = C.distance, visW = visH * (VW / VH);

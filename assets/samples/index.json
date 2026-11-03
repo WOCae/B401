@@ -9,6 +9,26 @@
    "path": "assets/samples/enemy.glb",
    "name": "サンプルの敵(Walk/Idle)",
    "kind": "enemy"
+  },
+  {
+   "path": "assets/samples/tile_block.glb",
+   "name": "サンプル: ブロック(原点=下端中央)",
+   "kind": "tile"
+  },
+  {
+   "path": "assets/samples/tile_spike.glb",
+   "name": "サンプル: トゲ",
+   "kind": "tile"
+  },
+  {
+   "path": "assets/samples/tile_coin.glb",
+   "name": "サンプル: コイン",
+   "kind": "tile"
+  },
+  {
+   "path": "assets/samples/tile_goal.glb",
+   "name": "サンプル: ゴール",
+   "kind": "tile"
   }
  ]
 }

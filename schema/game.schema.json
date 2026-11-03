@@ -596,6 +596,298 @@
       "default": 0,
       "slider": true,
       "group": "hitbox"
+    },
+    {
+      "path": "assets.tiles.#.model",
+      "type": "string",
+      "label": "地面/ブロックのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.color",
+      "type": "color",
+      "label": "地面/ブロックの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.model",
+      "type": "string",
+      "label": "トゲのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.color",
+      "type": "color",
+      "label": "トゲの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.model",
+      "type": "string",
+      "label": "コインのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.color",
+      "type": "color",
+      "label": "コインの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.model",
+      "type": "string",
+      "label": "ゴールのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.color",
+      "type": "color",
+      "label": "ゴールの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
     }
   ],
   "defaultGame": {
@@ -632,5 +924,12 @@
       "##########..##############...###########",
       "##########..##############...###########"
     ]
+  },
+  "uploads": {
+    "maxBytes": 5242880,
+    "maxFilesPerGame": 30,
+    "maxTotalBytesPerGame": 41943040,
+    "maxVertices": 300000,
+    "extension": "glb"
   }
 }

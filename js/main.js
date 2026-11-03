@@ -8,10 +8,12 @@ import { Engine, advance } from "./engine.js";
 import { draw2d } from "./render2d.js";
 import { drawHud } from "./hud.js";
 import { bindInput } from "./input.js";
-import { SUGGESTIONS } from "./suggest.js";
+import { SUGGESTION_GROUPS } from "./suggest.js";
+import { initAssets, modelPathsOf } from "./assets.js";
 
 const $ = id => document.getElementById(id);
-const app = { schema: null, gameId: null, version: 0, game: null, engine: null, proposal: null };
+const app = { schema: null, gameId: null, version: 0, game: null, engine: null, proposal: null, assets: null, assetVersions: {} };
+let assetsUI = null, modelSig = "";
 const keys = { l: 0, r: 0, j: 0, jp: false };
 const ctx = $("cv").getContext("2d");
 
@@ -36,6 +38,8 @@ function setGame(raw, { restart = true, version } = {}) {
   else if (restart) app.engine.load(app.game, true);
   else app.engine.setDef(app.game); // 位置・敵・コインはそのまま、定義だけ差し替える
   syncUI();
+  const ms = modelPathsOf(app.game);
+  if (ms !== modelSig) { modelSig = ms; if (assetsUI) assetsUI.refresh(); }
   return v;
 }
 
@@ -44,7 +48,7 @@ function setGame(raw, { restart = true, version } = {}) {
 const paramFields = () => app.schema.fields.filter(f => f.slider && !f.group);
 const viewFields = () => app.schema.fields.filter(f => f.group === "view");
 const pathGet = (g, p) => p.split(".").reduce((a, k) => a[k], g);
-const idOf = p => p.replace(/\./g, "_");
+const idOf = p => p.replace(/\./g, "_").replace(/#/g, "wall").replace(/\^/g, "spike");
 const setField = (path, v) => { const ks = path.split("."), last = ks.pop(); pathGet(app.game, ks.join("."))[last] = v; };
 const refreshers = [];
 function setPathOn(o, path, v) { const ks = path.split("."), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
@@ -85,13 +89,14 @@ function buildControls(container, fields) {
     } else if (f.type === "color") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="color" id="${id}" style="justify-self:start"><span></span>`;
       const ci = r.querySelector("input"), tail = r.querySelector("span");
-      const fallback = () => f.path === "assets.player.primitive.color" ? app.game.theme.player : "#000000";
+      const TILE_DEFAULT = { "#": () => app.game.theme.ground, "^": () => "#4a4f57", o: () => "#f5b800", G: () => "#d9342b" };
+      const fallback = () => f.path === "assets.player.primitive.color" ? app.game.theme.player : (f.path.startsWith("assets.tiles.") ? TILE_DEFAULT[f.path.split(".")[2]]() : "#000000");
       ci.addEventListener("input", () => live(ci.value));
       ci.addEventListener("change", () => { updateTail(); commit(); });
       let rb = null;
       const updateTail = () => {
         tail.innerHTML = ""; if (!f.nullable) return;
-        if (pathGet(app.game, f.path) === null) { tail.textContent = "テーマ色"; tail.className = "mute"; return; }
+        if (pathGet(app.game, f.path) === null) { tail.textContent = f.path.startsWith("assets.tiles.") ? "標準" : "テーマ色"; tail.className = "mute"; return; }
         rb = document.createElement("button"); rb.className = "mini"; rb.textContent = "×"; rb.title = "テーマ色に戻す";
         rb.onclick = () => { live(null); updateTail(); ci.value = fallback(); commit(); };
         tail.appendChild(rb);
@@ -163,24 +168,35 @@ $("applyjson").onclick = () => serial(async () => {
 });
 
 /* ---------- AI提案(差分を見せて承認式) ---------- */
-for (const name of Object.keys(SUGGESTIONS)) {
-  const b = document.createElement("button"); b.textContent = name;
-  b.onclick = async () => {
-    try {
-      const s = SUGGESTIONS[name](app.game, app.schema, app.engine);
-      if (!s) { $("prop").innerHTML = '<span class="mute">提案できる変更が見つかりませんでした。</span>'; app.proposal = null; return; }
-      const p = await api.proposePatch(app.gameId, s.ops, s.title, "rule"); // 保存するだけ。ゲームは変わらない
-      app.proposal = p; showProposal();
-    } catch (e) { fail(e); }
-  };
-  $("sugbtn").appendChild(b);
+// 提案はすべて「JSON差分(ops)」。ゲーム性・カメラ・アセット設定のどれも同じ仕組みで、適用ボタンを押すまで変わらない。
+const suggCtx = () => ({
+  engine: app.engine, assets: app.assets,
+  bounds: k => (view.r3d ? view.r3d.getModelBounds(k) : null),
+  clips: k => (view.r3d ? view.r3d.getClips(k) : []),
+});
+for (const [group, items] of SUGGESTION_GROUPS) {
+  const h = document.createElement("div"); h.className = "suggroup"; h.textContent = group; $("sugbtn").appendChild(h);
+  const row = document.createElement("div"); row.className = "bar"; $("sugbtn").appendChild(row);
+  for (const [name, fn] of Object.entries(items)) {
+    const b = document.createElement("button"); b.textContent = name;
+    b.onclick = async () => {
+      try {
+        const s = fn(app.game, app.schema, suggCtx());
+        if (!s || !s.ops || !s.ops.length) { $("prop").innerHTML = `<span class="mute">${esc((s && s.message) || "提案できる変更が見つかりませんでした。")}</span>`; app.proposal = null; return; }
+        const p = await api.proposePatch(app.gameId, s.ops, s.title, "rule"); // 保存するだけ。ゲームは変わらない
+        app.proposal = p; showProposal();
+      } catch (e) { fail(e); }
+    };
+    row.appendChild(b);
+  }
 }
 function showProposal() {
   const el = $("prop"), p = app.proposal;
   if (!p) { el.innerHTML = ""; return; }
   el.innerHTML = `<div>「${esc(p.title)}」の提案:</div><ul class="diff">` +
     p.ops.map(op => `<li>${esc(describeOp(op, app.game, app.schema))}</li>`).join("") +
-    `</ul><div class="bar"><button class="pri" id="okp">適用</button><button id="ngp">破棄</button></div>`;
+    `</ul>` + ((p.warnings || []).length ? `<div class="mute">注意: ${p.warnings.map(w => esc(w.message)).join(" / ")}</div>` : "") +
+    `<div class="bar"><button class="pri" id="okp">適用</button><button id="ngp">破棄</button></div>`;
   $("okp").onclick = () => serial(async () => {
     try {
       const levelChanged = p.ops.some(o => o.path.startsWith("/level"));
@@ -206,7 +222,8 @@ async function refreshGames(select) {
 async function openGame(id) {
   const r = await api.getGame(id);
   app.gameId = id; app.proposal = null; showProposal();
-  setGame(r.game, { restart: true, version: r.version });
+  modelSig = ""; setGame(r.game, { restart: true, version: r.version });
+  if (assetsUI) await assetsUI.refresh();
 }
 $("gameSel").onchange = e => openGame(e.target.value).catch(fail);
 $("newGame").onclick = async () => {
@@ -250,7 +267,7 @@ function loop(ts) {
     const use3d = want3d && view.r3d !== null;
     setViewMode(use3d);
     if (use3d) {
-      try { view.r3d.showHitbox = !!app.showHit; view.r3d.render(app.engine, Math.min(.1, dt)); }
+      try { view.r3d.setVersions(app.assetVersions); view.r3d.showHitbox = !!app.showHit; view.r3d.render(app.engine, Math.min(.1, dt)); }
       catch (e) { console.error(e); view.state = "failed"; view.r3d = null; setViewMode(false); say("3D描画でエラーが発生したため2Dで表示します(" + e.message + ")", "err", 10000); draw2d(ctx, app.engine); }
     } else draw2d(ctx, app.engine, { hitbox: app.showHit });
     drawHud(hud, app.engine);
@@ -268,7 +285,15 @@ function loop(ts) {
     const modelFields = who => app.schema.fields.filter(f => f.group === "model" && f.path.startsWith("assets." + who + "."));
     buildControls($("mc_player"), modelFields("player")); buildControls($("mc_enemy"), modelFields("enemy"));
     buildControls($("hitctl"), app.schema.fields.filter(f => f.group === "hitbox"));
-    try { const idx = await (await fetch("assets/samples/index.json")).json(); $("modelList").innerHTML = idx.models.map(m => `<option value="${esc(m.path)}">${esc(m.name)}</option>`).join(""); } catch { /* サンプル一覧は任意 */ }
+    for (const [sym, id] of [["#", "wall"], ["^", "spike"], ["o", "coin"], ["G", "goal"]]) buildControls($("tc_" + id), app.schema.fields.filter(f => f.group === "tile" && f.path.startsWith("assets.tiles." + sym + ".")));
+    assetsUI = initAssets({
+      api, $, esc, getGameId: () => app.gameId, getGame: () => app.game,
+      commit: (g, label) => commitGame(g, label, { restart: false }), say, fail,
+      onList: list => {
+        app.assets = list; app.assetVersions = Object.fromEntries(list.uploads.map(a => [a.path, a.mtime]));
+        $("modelList").innerHTML = [...list.uploads, ...list.samples].map(a => `<option value="${esc(a.path)}">${esc(a.name)}</option>`).join("");
+      },
+    });
     try { app.showHit = localStorage.getItem("showHit") === "1"; } catch { /* 保存できなくても動く */ }
     $("showHit").checked = app.showHit;
     $("showHit").onchange = e => { app.showHit = e.target.checked; try { localStorage.setItem("showHit", app.showHit ? "1" : "0"); } catch { /* 無視 */ } };

@@ -1,0 +1,28 @@
+# アップロードされたファイルは「GLBの静的配信のみ」。スクリプトの実行は一切禁止。
+Options -Indexes -ExecCGI -Includes
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+  php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps .phar .pl .py .cgi
+RemoveType .php .phtml .phar
+AddType model/gltf-binary .glb
+# .glb 以外は配信しない
+<IfModule mod_authz_core.c>
+  Require all denied
+  <FilesMatch "^[a-z0-9][a-z0-9_-]*\.glb$">
+    Require all granted
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order deny,allow
+  Deny from all
+  <FilesMatch "^[a-z0-9][a-z0-9_-]*\.glb$">
+    Allow from all
+  </FilesMatch>
+</IfModule>

@@ -9,5 +9,5 @@ const { chromium } = require('playwright');
     await p.keyboard.down('ArrowRight'); await p.waitForTimeout(400); await p.keyboard.up('ArrowRight');
     console.log(path, '=>', (await p.textContent('#status')).slice(0, 110), '| 3D継続:', await p.evaluate(() => window.__view.state), '| x=', await p.evaluate(() => Math.round(window.__app.engine.S.p.x)));
   }
-  console.log('errs', JSON.stringify(errs)); await b.close();
+  console.log('{"errs":' + JSON.stringify(errs) + '}'); await b.close();
 })();

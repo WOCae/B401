@@ -41,12 +41,22 @@ export function applyPatchOps(game, ops) {
   return doc;
 }
 
+const WHO = { player: "プレイヤー", enemy: "敵" }, TILE = { "#": "ブロック(#)", "^": "トゲ(^)", o: "コイン(o)", G: "ゴール(G)" };
+function whoOf(dot) { // assets.<対象>.… の対象名(差分表示で「どれの設定か」を明示する)
+  const k = dot.split(".");
+  if (k[0] !== "assets") return "";
+  return WHO[k[1]] || (k[1] === "tiles" ? TILE[k[2]] || "" : "");
+}
+
 /** 差分を人が読める1行にする(UI表示用) */
 export function describeOp(op, game, schema) {
   const dot = op.path.slice(1).split("/").join(".");
   const f = schema.fields.find(x => x.path === dot);
   const old = getPath(game, dot);
-  if (f && op.op === "replace") return `${f.label}: ${old} → ${op.value}`;
+  if (f && op.op === "replace") {
+    const who = whoOf(dot);
+    return `${who && !f.label.includes(who.replace(/\(.*\)/, "")) ? "[" + who + "] " : ""}${f.label}: ${old} → ${op.value}`;
+  }
   const m = /^\/level\/(\d+)$/.exec(op.path);
   if (m && op.op === "replace" && typeof op.value === "string") {
     const y = +m[1], before = game.level[y] || "", out = [];

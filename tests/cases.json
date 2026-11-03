@@ -459,6 +459,59 @@
      "#"
     ]
    }
+  },
+  {
+   "name": "tiles-ok",
+   "input": {
+    "assets": {
+     "tiles": {
+      "#": {
+       "model": "uploads/demo/block-1.glb",
+       "color": "#112233",
+       "scale": 2,
+       "yaw": 90,
+       "offsetX": 3
+      },
+      "^": {
+       "model": null
+      },
+      "o": {
+       "color": null
+      },
+      "G": {
+       "offsetZ": -5
+      }
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "tiles-bad",
+   "input": {
+    "assets": {
+     "tiles": {
+      "#": {
+       "model": "../x.glb",
+       "color": "red",
+       "scale": 99
+      },
+      "E": {
+       "model": "a/b.glb"
+      },
+      ".": {
+       "model": "a/b.glb"
+      }
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
   }
  ],
  "patch": [

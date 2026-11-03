@@ -27,7 +27,13 @@ try {
 
     $args = $_GET;
     unset($args['tool']);
-    if ($method === 'POST') {
+    $files = [];
+    if ($method === 'POST' && ($tools[$name]['multipart'] ?? false)) {
+        // ファイルアップロード(multipart)。クロスサイトのフォーム送信を防ぐため独自ヘッダを必須にする
+        if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'platformer-maker') throw new ToolError('不正なリクエストです', 'bad_request', 403);
+        $args = $_POST;
+        $files = $_FILES;
+    } elseif ($method === 'POST') {
         // CSRF対策: クロスサイトのフォームからは application/json を送れない
         if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) throw new ToolError('Content-Type は application/json にしてください', 'bad_content_type', 415);
         $raw = file_get_contents('php://input', false, null, 0, 4 * 1024 * 1024 + 1);
@@ -36,7 +42,8 @@ try {
         if (!is_array($body)) throw new ToolError('JSONとして読み取れません', 'bad_json');
         $args = $body;
     }
-    reply(200, ['ok' => true, 'result' => ('PM\\' . $tools[$name]['fn'])($args)]);
+    $fn = 'PM\\' . $tools[$name]['fn'];
+    reply(200, ['ok' => true, 'result' => ($tools[$name]['multipart'] ?? false) ? $fn($args, $files) : $fn($args)]);
 } catch (ToolError $e) {
     reply($e->status, ['ok' => false, 'error' => ['code' => $e->errCode, 'message' => $e->getMessage(), 'details' => $e->details]]);
 } catch (Throwable $e) {
