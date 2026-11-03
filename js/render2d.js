@@ -1,7 +1,7 @@
 // 2D描画(canvas)。段階2で 3D描画(render3d.js)と切り替え可能にする。
 import { T, VW, VH } from "./engine.js";
 
-export function draw2d(c, eng) {
+export function draw2d(c, eng, opts = {}) {
   const th = eng.def.theme, p = eng.S.p, S = eng.S, W = eng.W, H = eng.H, grid = eng.grid;
   c.fillStyle = th.sky; c.fillRect(0, 0, VW, VH);
   const cam = Math.round(Math.max(0, Math.min(W * T - VW, p.x + p.w / 2 - VW / 2)));
@@ -16,5 +16,9 @@ export function draw2d(c, eng) {
   for (const e of S.en) if (e.alive) { c.fillStyle = "#7a3fb0"; c.fillRect(e.x, e.y, e.w, e.h); c.fillStyle = "#fff"; c.fillRect(e.x + 5, e.y + 6, 5, 5); c.fillRect(e.x + 14, e.y + 6, 5, 5); }
   c.fillStyle = th.player; c.fillRect(p.x, p.y, p.w, p.h);
   c.fillStyle = "#fff"; c.fillRect(p.x + (p.vx < -5 ? 3 : 13), p.y + 6, 6, 6);
+  if (opts.hitbox) { // ヒットボックス(物理の当たり判定そのもの)のデバッグ表示
+    c.lineWidth = 1; c.strokeStyle = "#00ff66"; c.strokeRect(p.x + .5, p.y + .5, p.w - 1, p.h - 1);
+    c.strokeStyle = "#ff3b30"; for (const e of S.en) if (e.alive) c.strokeRect(e.x + .5, e.y + .5, e.w - 1, e.h - 1);
+  }
   c.restore();
 }

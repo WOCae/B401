@@ -51,9 +51,25 @@ node tests/engine_equivalence.mjs     # 新エンジン == reference のロジ�
 - `depth`: ステージの奥行きの厚み(見た目のみ)。`primitive.width/height` は見た目のサイズで、当たり判定とは独立(ヒットボックスは段階3で調整可能に)。
 - `primitive.color` が `null` のときプレイヤーは `theme.player` の色。
 
+## GLBモデル・アニメーション・ヒットボックス(段階3)
+```json
+{ "assets": {
+  "player": { "model": "assets/samples/player.glb", "scale": 1, "yaw": 0, "offsetX": 0, "offsetY": 0, "offsetZ": 0,
+              "anim": { "idle": "Idle", "run": "Run", "jump": "Jump", "fall": "Fall" },
+              "hitbox": { "w": 22, "h": 28, "ox": 0, "oy": 0 }, "primitive": { } },
+  "enemy":  { "model": "assets/samples/enemy.glb", "anim": { "walk": "Walk" }, "hitbox": { "w": 24, "h": 24 } } } }
+```
+- `model`: 読み込むGLBのパス(`assets/...` 等の相対パス・`..`不可・拡張子`.glb`のみ)。空/未指定/読み込み失敗ならプリミティブ表示で動く。
+- `scale` 1 = 1 glTF単位 = 1タイル(32px)。`yaw` はモデルの向き補正(正面は+Z)。`offsetX/Y/Z` は足元の位置合わせ(px)。
+- `anim`: クリップ名の対応。未指定(null)ならクリップ名 `idle/run/jump/fall/walk`(大小無視)で自動選択。指定名が無いと警告して自動選択。
+- `hitbox`: **物理の当たり判定そのもの**(見た目と独立)。`w,h` はpx、`ox,oy` は「モデル原点から見たヒットボックス下端中央」(右・上が+)。既定は元の 22x28 / 24x24 で挙動は変わらない。
+- ヒットボックスのワイヤーフレーム表示は表示用設定(JSONではなくブラウザに保存)。2D/3Dどちらでも出る。
+- テスト用GLBは `node tools/make_sample_glbs.mjs` で生成(外部ライブラリ不要。`assets/samples/`)。
+- サーバーの `validate_game` / `save_game` は参照GLBの存在と `glTF` ヘッダを確認して警告を返す(`asset_issues`)。
+
 ## 画面テスト(Playwright が必要)
 ```bash
-node tests/e2e_dashboard.cjs; node tests/e2e_3d.cjs; node tests/e2e_no_webgl.cjs   # BASE=http://... OUT=出力先
+node tests/e2e_dashboard.cjs; node tests/e2e_3d.cjs; node tests/e2e_no_webgl.cjs; node tests/e2e_models.cjs; node tests/e2e_broken_glb.cjs   # BASE=http://... OUT=出力先
 ```
 
 ## 現状の注意

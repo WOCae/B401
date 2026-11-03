@@ -32,24 +32,27 @@ function setGame(raw, { restart = true, version } = {}) {
   if (!v.ok) throw new Error(v.errors.map(e => e.message).join(" / "));
   app.game = v.game;
   if (version !== undefined) app.version = version;
-  if (app.engine) app.engine.load(app.game, restart); else app.engine = new Engine(app.game);
+  if (!app.engine) app.engine = new Engine(app.game);
+  else if (restart) app.engine.load(app.game, true);
+  else app.engine.setDef(app.game); // 位置・敵・コインはそのまま、定義だけ差し替える
   syncUI();
   return v;
 }
 
 /* ---------- パラメータ調整・表示設定(スキーマのフィールドから自動生成) ---------- */
 // group が "view" のフィールド=表示・カメラ・見た目、それ以外の slider=物理などのパラメータ
-const paramFields = () => app.schema.fields.filter(f => f.slider && f.group !== "view");
+const paramFields = () => app.schema.fields.filter(f => f.slider && !f.group);
 const viewFields = () => app.schema.fields.filter(f => f.group === "view");
 const pathGet = (g, p) => p.split(".").reduce((a, k) => a[k], g);
 const idOf = p => p.replace(/\./g, "_");
 const setField = (path, v) => { const ks = path.split("."), last = ks.pop(); pathGet(app.game, ks.join("."))[last] = v; };
 const refreshers = [];
+function setPathOn(o, path, v) { const ks = path.split("."), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
 function buildControls(container, fields) {
   container.innerHTML = "";
   for (const f of fields) {
     const id = "c_" + idOf(f.path), r = document.createElement("div"); r.className = "row";
-    const live = v => { setField(f.path, v); renderDiag(); syncJson(); };
+    const live = v => { setField(f.path, v); if (f.group === "hitbox") app.engine.restart(); renderDiag(); syncJson(); };
     const commit = () => commitGame(app.game, `${f.label}を調整`, { restart: false });
     if (f.type === "number") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}"><output></output>`;
@@ -67,6 +70,18 @@ function buildControls(container, fields) {
       const cb = r.querySelector("input");
       cb.addEventListener("change", () => { live(cb.checked); cb.blur(); commit(); });
       refreshers.push(() => { cb.checked = pathGet(app.game, f.path); });
+    } else if (f.type === "string" && f.pattern !== undefined || f.type === "string" && f.nullable) {
+      const isModel = f.path.endsWith(".model"), who = f.path.split(".")[1];
+      const list = isModel ? "modelList" : (f.path.includes(".anim.") ? "clips_" + who : "");
+      r.className = "row wide";
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="text" id="${id}" ${list ? `list="${list}"` : ""} maxlength="${f.maxLength}" placeholder="${isModel ? "assets/samples/player.glb" : "自動"}" autocomplete="off" spellcheck="false">`;
+      const ti = r.querySelector("input");
+      ti.addEventListener("change", () => { // 空なら未指定(null)。形式が不正なら検証が既定値に戻す
+        const v = ti.value.trim();
+        const g = clone(app.game); setPathOn(g, f.path, v === "" ? null : v);
+        ti.blur(); commitGame(g, `${f.label}を変更`, { restart: false });
+      });
+      refreshers.push(() => { const v = pathGet(app.game, f.path); ti.value = v === null ? "" : v; });
     } else if (f.type === "color") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="color" id="${id}" style="justify-self:start"><span></span>`;
       const ci = r.querySelector("input"), tail = r.querySelector("span");
@@ -106,12 +121,17 @@ function commitGame(game, label, { restart }) {
   try {
     const r = await api.saveGame(app.gameId, game, app.version, label);
     setGame(r.game, { restart, version: r.version });
+    warnAssets(r.warnings);
     return r;
   } catch (e) {
     fail(e);
     await reload(false); // サーバー上の直前の状態に戻す
   }
   });
+}
+function warnAssets(warnings = []) { // サーバーが調べたモデルの有無・GLBヘッダの警告
+  const w = warnings.filter(x => x.code.startsWith("asset_") || x.code === "bad_format");
+  if (w.length) say(w.map(x => x.message).join(" / "), "err", 9000);
 }
 async function reload(restart = true) {
   const r = await api.getGame(app.gameId);
@@ -167,6 +187,7 @@ function showProposal() {
       const r = await api.applyPatch(app.gameId, p.proposal_id); // 人がボタンを押したときだけ適用
       app.proposal = null; showProposal();
       setGame(r.game, { restart: levelChanged, version: r.version });
+      warnAssets(r.warnings);
     } catch (e) { fail(e); }
   });
   $("ngp").onclick = async () => {
@@ -200,11 +221,18 @@ $("newGame").onclick = async () => {
 /* ---------- メインループ ---------- */
 const hud = $("hud").getContext("2d");
 const view = { r3d: null, state: "idle", is3d: null }; // state: idle | loading | failed
+if (location.search.includes("debug")) { window.__app = app; window.__view = view; } // テスト用
 function ensure3d() {
   if (view.state !== "idle") return;
   view.state = "loading";
   import("./render3d.js")
-    .then(m => { view.r3d = new m.Renderer3D($("cv3")); view.state = "ready"; })
+    .then(m => { view.r3d = new m.Renderer3D($("cv3"), {
+      onWarn: msg => say(msg, "err", 9000),
+      onModel: ({ kind, url, clips }) => {
+        $("clips_" + kind).innerHTML = clips.map(c => `<option value="${esc(c)}">`).join("");
+        $("modelinfo").textContent = (kind === "player" ? "プレイヤー" : "敵") + "のモデル " + url + " のクリップ: " + (clips.join(", ") || "なし");
+      },
+    }); view.state = "ready"; })
     .catch(e => { view.state = "failed"; say("3D表示を開始できないため2Dで表示します(" + e.message + ")", "err", 10000); });
 }
 function setViewMode(is3d) {
@@ -222,9 +250,9 @@ function loop(ts) {
     const use3d = want3d && view.r3d !== null;
     setViewMode(use3d);
     if (use3d) {
-      try { view.r3d.render(app.engine, Math.min(.1, dt)); }
+      try { view.r3d.showHitbox = !!app.showHit; view.r3d.render(app.engine, Math.min(.1, dt)); }
       catch (e) { console.error(e); view.state = "failed"; view.r3d = null; setViewMode(false); say("3D描画でエラーが発生したため2Dで表示します(" + e.message + ")", "err", 10000); draw2d(ctx, app.engine); }
-    } else draw2d(ctx, app.engine);
+    } else draw2d(ctx, app.engine, { hitbox: app.showHit });
     drawHud(hud, app.engine);
   } catch (e) { console.error(e); say("実行中にエラーが発生したため、最後の保存状態に戻します", "err", 8000); reload(true).catch(() => {}); }
   requestAnimationFrame(loop);
@@ -237,6 +265,13 @@ function loop(ts) {
     app.schema = await api.getSchema();
     buildControls($("sliders"), paramFields());
     buildControls($("viewctl"), viewFields());
+    const modelFields = who => app.schema.fields.filter(f => f.group === "model" && f.path.startsWith("assets." + who + "."));
+    buildControls($("mc_player"), modelFields("player")); buildControls($("mc_enemy"), modelFields("enemy"));
+    buildControls($("hitctl"), app.schema.fields.filter(f => f.group === "hitbox"));
+    try { const idx = await (await fetch("assets/samples/index.json")).json(); $("modelList").innerHTML = idx.models.map(m => `<option value="${esc(m.path)}">${esc(m.name)}</option>`).join(""); } catch { /* サンプル一覧は任意 */ }
+    try { app.showHit = localStorage.getItem("showHit") === "1"; } catch { /* 保存できなくても動く */ }
+    $("showHit").checked = app.showHit;
+    $("showHit").onchange = e => { app.showHit = e.target.checked; try { localStorage.setItem("showHit", app.showHit ? "1" : "0"); } catch { /* 無視 */ } };
     let { games } = await api.listGames();
     if (!games.length) { await api.createGame("demo", null); ({ games } = await api.listGames()); }
     await refreshGames(games[0].game_id);

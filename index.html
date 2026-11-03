@@ -30,7 +30,21 @@
 <div class="card">
 <h2>表示・カメラ・見た目</h2>
 <div id="viewctl"></div>
+<datalist id="modelList"></datalist><datalist id="clips_player"></datalist><datalist id="clips_enemy"></datalist>
 <p class="mute">表示モード「3D」にするとThree.jsで描画します。ゲームのロジック(物理・当たり判定)は2Dのままで、見た目だけが変わります。</p>
+</div>
+<div class="card">
+<h2>キャラのモデル(GLB)</h2>
+<details open><summary>プレイヤー</summary><div id="mc_player"></div></details>
+<details><summary>敵</summary><div id="mc_enemy"></div></details>
+<div id="modelinfo" class="mute"></div>
+<p class="mute">モデルのパスは <code>assets/samples/player.glb</code> のように指定します(空ならプリミティブ)。スケール1=1タイル(32px)、正面は+Zです。読み込めない場合はプリミティブのまま動きます。</p>
+</div>
+<div class="card">
+<h2>ヒットボックス(当たり判定)</h2>
+<label class="chk"><input type="checkbox" id="showHit"> ヒットボックスを表示(緑=プレイヤー / 赤=敵)</label>
+<div id="hitctl"></div>
+<p class="mute">当たり判定は見た目のモデルとは独立です。ox/oy は「モデルの原点から見たヒットボックス下端中央の位置」(右・上が+)。変更するとリスタートします。</p>
 </div>
 <div class="card">
 <h2>難易度の診断</h2>

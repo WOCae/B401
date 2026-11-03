@@ -2,6 +2,7 @@
 // 2Dのまま。座標は (x, y) ピクセル、1タイル=32px、固定タイムステップ。
 // reference/platformer-maker.html の step()/reset() と同じ挙動。
 export const T = 32, VW = 640, VH = 384, DT = 1 / 60;
+const DEFAULT_ASSETS = { player: { hitbox: { w: 22, h: 28 } }, enemy: { hitbox: { w: 24, h: 24 } } };
 
 export class Engine {
   /** def: validateGame 済みのゲーム定義(参照を保持するので、物理値の即時反映が効く) */
@@ -13,19 +14,24 @@ export class Engine {
     this.H = def.level.length;
     this.W = Math.max(...def.level.map(r => r.length));
     this.grid = def.level.map(r => r.padEnd(this.W, ".").split(""));
+    // 当たり判定(ヒットボックス)は見た目のモデルとは独立。幅・高さがそのまま物理のAABB。
+    // 既定値(プレイヤー22x28 / 敵24x24)は元のプロトタイプと同じで、タイル中央・足元に置く。
+    const hp = (def.assets || DEFAULT_ASSETS).player.hitbox, he = (def.assets || DEFAULT_ASSETS).enemy.hitbox;
     const S = this.S = {
-      p: { x: 0, y: 0, w: 22, h: 28, vx: 0, vy: 0, on: false, coy: 0, buf: 0 },
+      p: { x: 0, y: 0, w: hp.w, h: hp.h, vx: 0, vy: 0, on: false, coy: 0, buf: 0 },
       en: [], got: {}, coins: 0, total: 0, deaths, t: 0, won: false, sx: 0, sy: 0,
     };
     for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) {
       const c = this.grid[y][x];
-      if (c === "P") { S.sx = x * T + 5; S.sy = (y + 1) * T - 28; }
-      if (c === "E") S.en.push({ x: x * T + 4, y: (y + 1) * T - 24, w: 24, h: 24, d: -1, alive: true });
+      if (c === "P") { S.sx = x * T + (T - hp.w) / 2; S.sy = (y + 1) * T - hp.h; }
+      if (c === "E") S.en.push({ x: x * T + (T - he.w) / 2, y: (y + 1) * T - he.h, w: he.w, h: he.h, d: -1, alive: true });
       if (c === "o") S.total++;
     }
     S.p.x = S.sx; S.p.y = S.sy;
   }
 
+  /** 状態(位置・敵・コイン)を保ったまま定義だけ差し替える。レベルが同じときのみ使う */
+  setDef(def) { this.def = def; }
   restart() { this.load(this.def, true); }
   die() { const d = this.S.deaths + 1; this.load(this.def, false); this.S.deaths = d; }
 

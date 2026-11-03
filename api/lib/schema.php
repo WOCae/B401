@@ -123,6 +123,13 @@ function validate_game_def(mixed $input, array $schema): array
                 $v = $f['default'];
             } elseif ($raw === '') {
                 $v = $f['default'];
+            } elseif (isset($f['pattern'])) {
+                if (count(cps($raw)) <= $f['maxLength'] && preg_match('~' . $f['pattern'] . '~D', $raw) === 1) {
+                    $v = $raw;
+                } else {
+                    $warnings[] = issue($f['path'], 'bad_format', "{$f['path']}: 使えない形式です(例: assets/samples/player.glb)。既定値に戻します");
+                    $v = $f['default'];
+                }
             } else {
                 $chars = cps($raw);
                 if (count($chars) > $f['maxLength']) {

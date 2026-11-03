@@ -83,6 +83,12 @@ export function validateGame(input, schema) {
         v = f.default;
       } else if (raw === "") {
         v = f.default;
+      } else if (f.pattern) { // パス等: 切り詰めず、長すぎ・不正は既定値に戻す
+        if (Array.from(raw).length <= f.maxLength && new RegExp(f.pattern).test(raw)) v = raw;
+        else {
+          warnings.push(issue(f.path, "bad_format", `${f.path}: 使えない形式です(例: assets/samples/player.glb)。既定値に戻します`));
+          v = f.default;
+        }
       } else {
         const chars = Array.from(raw);
         if (chars.length > f.maxLength) {

@@ -316,6 +316,149 @@
      "#"
     ]
    }
+  },
+  {
+   "name": "model-ok",
+   "input": {
+    "assets": {
+     "player": {
+      "model": "assets/samples/player.glb",
+      "scale": 2,
+      "yaw": 90,
+      "offsetX": 3,
+      "offsetY": -5,
+      "offsetZ": 0,
+      "anim": {
+       "idle": "Idle",
+       "run": "Run",
+       "jump": null,
+       "fall": "Fall"
+      },
+      "hitbox": {
+       "w": 20,
+       "h": 30,
+       "ox": 2,
+       "oy": -1
+      }
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "model-bad-paths",
+   "input": {
+    "assets": {
+     "player": {
+      "model": "../evil.glb"
+     },
+     "enemy": {
+      "model": "/abs/x.glb"
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "model-bad-ext",
+   "input": {
+    "assets": {
+     "player": {
+      "model": "assets/x.gltf"
+     },
+     "enemy": {
+      "model": "uploads/demo/ok_1.glb"
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "model-types",
+   "input": {
+    "assets": {
+     "player": {
+      "model": 5,
+      "anim": {
+       "idle": 7
+      }
+     },
+     "enemy": {
+      "model": ""
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "model-dotdot-inside",
+   "input": {
+    "assets": {
+     "player": {
+      "model": "a/b..c/x.glb"
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "hitbox-clamp",
+   "input": {
+    "assets": {
+     "player": {
+      "scale": 999,
+      "yaw": 500,
+      "offsetX": -999,
+      "hitbox": {
+       "w": 1000,
+       "h": 0,
+       "ox": 99,
+       "oy": -99
+      }
+     },
+     "enemy": {
+      "hitbox": {
+       "w": "a",
+       "h": 99
+      }
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
+  },
+  {
+   "name": "anim-long",
+   "input": {
+    "assets": {
+     "enemy": {
+      "anim": {
+       "walk": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+     }
+    },
+    "level": [
+     "P",
+     "#"
+    ]
+   }
   }
  ],
  "patch": [

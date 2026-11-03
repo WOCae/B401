@@ -22,6 +22,24 @@ function registry(): array
     ];
 }
 
+/** ゲームが参照するGLBの存在・ヘッダ確認。ブロックはせず警告として返す(未配置でもプリミティブで動くため) */
+function asset_issues(array $game): array
+{
+    $out = [];
+    foreach (['player', 'enemy'] as $who) {
+        $path = $game['assets'][$who]['model'] ?? null;
+        if (!is_string($path)) continue;
+        $file = PM_ROOT . '/' . $path;
+        $p = "assets.{$who}.model";
+        if (!is_file($file)) { $out[] = issue($p, 'asset_missing', "{$path} が見つかりません(プリミティブで表示します)"); continue; }
+        $fh = fopen($file, 'rb');
+        $head = $fh ? fread($fh, 4) : '';
+        if ($fh) fclose($fh);
+        if ($head !== 'glTF') $out[] = issue($p, 'asset_invalid', "{$path} はGLBファイルではありません");
+    }
+    return $out;
+}
+
 function tool_get_schema(array $a): array { return schema_load(); }
 
 function tool_list_games(array $a): array
@@ -65,6 +83,7 @@ function tool_validate_game(array $a): array
     $diag = null;
     $assetIssues = [];
     if ($r['ok']) {
+        $assetIssues = asset_issues($r['game']);
         $diag = diagnose_game($r['game'], $schema);
         if (!$diag['gapsClearable']) {
             $r['warnings'][] = issue('level', 'gap_too_wide', '穴がジャンプ距離を超えています。クリアできない可能性があります');
@@ -96,7 +115,7 @@ function tool_save_game(array $a): array
     $label = mb_substr((string)($a['label'] ?? '編集'), 0, 60);
     $base = isset($a['base_version']) ? (int)$a['base_version'] : null;
     $c = with_lock($id, fn() => commit_locked($id, $r['game'], $label, $base));
-    return ['game_id' => $id, 'version' => $c['version'], 'game' => $r['game'], 'warnings' => $r['warnings']];
+    return ['game_id' => $id, 'version' => $c['version'], 'game' => $r['game'], 'warnings' => array_merge($r['warnings'], asset_issues($r['game']))];
 }
 
 function tool_list_history(array $a): array
@@ -156,7 +175,7 @@ function tool_propose_patch(array $a): array
         'id' => $pid, 'game_id' => $id, 'status' => 'pending', 'source' => $source, 'title' => $title,
         'base_version' => $cur['version'], 'ops' => $ops, 'created' => gmdate('c'),
     ]);
-    return ['proposal_id' => $pid, 'game_id' => $id, 'title' => $title, 'base_version' => $cur['version'], 'ops' => $ops, 'warnings' => $r['warnings']];
+    return ['proposal_id' => $pid, 'game_id' => $id, 'title' => $title, 'base_version' => $cur['version'], 'ops' => $ops, 'warnings' => array_merge($r['warnings'], asset_issues($r['game']))];
 }
 
 /** 人が承認した提案IDだけを適用して履歴に残す */
@@ -175,7 +194,7 @@ function tool_apply_patch(array $a): array
         $p['status'] = 'applied';
         $p['applied_version'] = $c['version'];
         write_json($path, $p);
-        return ['game_id' => $id, 'version' => $c['version'], 'game' => $r['game'], 'warnings' => $r['warnings']];
+        return ['game_id' => $id, 'version' => $c['version'], 'game' => $r['game'], 'warnings' => array_merge($r['warnings'], asset_issues($r['game']))];
     });
 }
 
