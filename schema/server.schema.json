@@ -1,0 +1,942 @@
+{
+  "schemaVersion": 1,
+  "tileSize": 32,
+  "level": {
+    "maxRows": 60,
+    "maxCols": 400,
+    "requiredTiles": [
+      "P"
+    ]
+  },
+  "tiles": {
+    ".": {
+      "name": "空"
+    },
+    "#": {
+      "name": "地面/ブロック",
+      "solid": true
+    },
+    "^": {
+      "name": "トゲ"
+    },
+    "o": {
+      "name": "コイン"
+    },
+    "E": {
+      "name": "歩く敵"
+    },
+    "G": {
+      "name": "ゴール"
+    },
+    "P": {
+      "name": "開始位置"
+    }
+  },
+  "fields": [
+    {
+      "path": "meta.title",
+      "type": "string",
+      "label": "タイトル",
+      "default": "はじめてのステージ",
+      "maxLength": 60
+    },
+    {
+      "path": "physics.gravity",
+      "type": "number",
+      "label": "重力",
+      "min": 800,
+      "max": 3200,
+      "step": 50,
+      "default": 1800,
+      "slider": true
+    },
+    {
+      "path": "physics.moveSpeed",
+      "type": "number",
+      "label": "移動速度",
+      "min": 100,
+      "max": 360,
+      "step": 5,
+      "default": 200,
+      "slider": true
+    },
+    {
+      "path": "physics.jumpVelocity",
+      "type": "number",
+      "label": "ジャンプ力",
+      "min": 300,
+      "max": 900,
+      "step": 10,
+      "default": 620,
+      "slider": true
+    },
+    {
+      "path": "physics.accel",
+      "type": "number",
+      "label": "加速の鋭さ",
+      "min": 4,
+      "max": 30,
+      "step": 1,
+      "default": 14,
+      "slider": true
+    },
+    {
+      "path": "physics.coyoteTime",
+      "type": "number",
+      "label": "コヨーテタイム(秒)",
+      "min": 0,
+      "max": 0.25,
+      "step": 0.01,
+      "default": 0.08,
+      "slider": true
+    },
+    {
+      "path": "physics.jumpBuffer",
+      "type": "number",
+      "label": "ジャンプ先行入力(秒)",
+      "min": 0,
+      "max": 0.25,
+      "step": 0.01,
+      "default": 0.1,
+      "slider": true
+    },
+    {
+      "path": "enemy.speed",
+      "type": "number",
+      "label": "敵の速度",
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "default": 50,
+      "slider": true
+    },
+    {
+      "path": "theme.sky",
+      "type": "color",
+      "label": "空の色",
+      "default": "#bfe3ff",
+      "group": "view"
+    },
+    {
+      "path": "theme.ground",
+      "type": "color",
+      "label": "地面の色",
+      "default": "#6b4a2b",
+      "group": "view"
+    },
+    {
+      "path": "theme.player",
+      "type": "color",
+      "label": "プレイヤーの色",
+      "default": "#e4572e",
+      "group": "view"
+    },
+    {
+      "path": "render.mode",
+      "type": "enum",
+      "label": "表示モード",
+      "values": [
+        "2d",
+        "3d"
+      ],
+      "valueLabels": [
+        "2D",
+        "3D"
+      ],
+      "default": "2d",
+      "group": "view"
+    },
+    {
+      "path": "render.camera.type",
+      "type": "enum",
+      "label": "カメラの種類",
+      "values": [
+        "orthographic",
+        "perspective"
+      ],
+      "valueLabels": [
+        "正射投影",
+        "透視投影"
+      ],
+      "default": "orthographic",
+      "group": "view"
+    },
+    {
+      "path": "render.camera.angle",
+      "type": "number",
+      "label": "カメラの角度(度)",
+      "min": 0,
+      "max": 60,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "render.camera.distance",
+      "type": "number",
+      "label": "カメラの距離(タイル)",
+      "min": 6,
+      "max": 40,
+      "step": 1,
+      "default": 12,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "render.camera.follow",
+      "type": "enum",
+      "label": "カメラ追従",
+      "values": [
+        "player",
+        "none"
+      ],
+      "valueLabels": [
+        "プレイヤー",
+        "固定"
+      ],
+      "default": "player",
+      "group": "view"
+    },
+    {
+      "path": "render.depth",
+      "type": "number",
+      "label": "奥行きの厚み(タイル)",
+      "min": 0.25,
+      "max": 4,
+      "step": 0.25,
+      "default": 1,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "render.lighting",
+      "type": "enum",
+      "label": "ライティング",
+      "values": [
+        "default",
+        "bright",
+        "dim"
+      ],
+      "valueLabels": [
+        "標準",
+        "明るい",
+        "暗い"
+      ],
+      "default": "default",
+      "group": "view"
+    },
+    {
+      "path": "assets.player.primitive.shape",
+      "type": "enum",
+      "label": "プレイヤーの形",
+      "values": [
+        "capsule",
+        "box",
+        "sphere"
+      ],
+      "valueLabels": [
+        "カプセル",
+        "ボックス",
+        "球"
+      ],
+      "default": "capsule",
+      "group": "view"
+    },
+    {
+      "path": "assets.player.primitive.color",
+      "type": "color",
+      "label": "プレイヤーの色(空=テーマ色)",
+      "default": null,
+      "nullable": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.player.primitive.width",
+      "type": "number",
+      "label": "プレイヤーの見た目の幅(px)",
+      "min": 8,
+      "max": 64,
+      "step": 1,
+      "default": 22,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.player.primitive.height",
+      "type": "number",
+      "label": "プレイヤーの見た目の高さ(px)",
+      "min": 8,
+      "max": 64,
+      "step": 1,
+      "default": 28,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.player.primitive.eyes",
+      "type": "bool",
+      "label": "プレイヤーの目",
+      "default": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.enemy.primitive.shape",
+      "type": "enum",
+      "label": "敵の形",
+      "values": [
+        "capsule",
+        "box",
+        "sphere"
+      ],
+      "valueLabels": [
+        "カプセル",
+        "ボックス",
+        "球"
+      ],
+      "default": "capsule",
+      "group": "view"
+    },
+    {
+      "path": "assets.enemy.primitive.color",
+      "type": "color",
+      "label": "敵の色",
+      "default": "#7a3fb0",
+      "nullable": false,
+      "group": "view"
+    },
+    {
+      "path": "assets.enemy.primitive.width",
+      "type": "number",
+      "label": "敵の見た目の幅(px)",
+      "min": 8,
+      "max": 64,
+      "step": 1,
+      "default": 24,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.enemy.primitive.height",
+      "type": "number",
+      "label": "敵の見た目の高さ(px)",
+      "min": 8,
+      "max": 64,
+      "step": 1,
+      "default": 24,
+      "slider": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.enemy.primitive.eyes",
+      "type": "bool",
+      "label": "敵の目",
+      "default": true,
+      "group": "view"
+    },
+    {
+      "path": "assets.player.model",
+      "type": "string",
+      "label": "モデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "group": "model",
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$"
+    },
+    {
+      "path": "assets.player.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.yaw",
+      "type": "number",
+      "label": "モデルの向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.anim.idle",
+      "type": "string",
+      "label": "Idleのクリップ名",
+      "default": null,
+      "nullable": true,
+      "maxLength": 64,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.anim.run",
+      "type": "string",
+      "label": "Runのクリップ名",
+      "default": null,
+      "nullable": true,
+      "maxLength": 64,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.anim.jump",
+      "type": "string",
+      "label": "Jumpのクリップ名",
+      "default": null,
+      "nullable": true,
+      "maxLength": 64,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.anim.fall",
+      "type": "string",
+      "label": "Fallのクリップ名",
+      "default": null,
+      "nullable": true,
+      "maxLength": 64,
+      "group": "model"
+    },
+    {
+      "path": "assets.player.hitbox.w",
+      "type": "number",
+      "label": "ヒットボックス幅(px)",
+      "min": 8,
+      "max": 32,
+      "step": 1,
+      "default": 22,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.player.hitbox.h",
+      "type": "number",
+      "label": "ヒットボックス高さ(px)",
+      "min": 8,
+      "max": 60,
+      "step": 1,
+      "default": 28,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.player.hitbox.ox",
+      "type": "number",
+      "label": "ヒットボックス ox(px, 右が+)",
+      "min": -32,
+      "max": 32,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.player.hitbox.oy",
+      "type": "number",
+      "label": "ヒットボックス oy(px, 上が+)",
+      "min": -32,
+      "max": 32,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.enemy.model",
+      "type": "string",
+      "label": "モデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "group": "model",
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$"
+    },
+    {
+      "path": "assets.enemy.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.yaw",
+      "type": "number",
+      "label": "モデルの向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.anim.walk",
+      "type": "string",
+      "label": "Walkのクリップ名",
+      "default": null,
+      "nullable": true,
+      "maxLength": 64,
+      "group": "model"
+    },
+    {
+      "path": "assets.enemy.hitbox.w",
+      "type": "number",
+      "label": "ヒットボックス幅(px)",
+      "min": 8,
+      "max": 32,
+      "step": 1,
+      "default": 24,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.enemy.hitbox.h",
+      "type": "number",
+      "label": "ヒットボックス高さ(px)",
+      "min": 8,
+      "max": 48,
+      "step": 1,
+      "default": 24,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.enemy.hitbox.ox",
+      "type": "number",
+      "label": "ヒットボックス ox(px, 右が+)",
+      "min": -32,
+      "max": 32,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.enemy.hitbox.oy",
+      "type": "number",
+      "label": "ヒットボックス oy(px, 上が+)",
+      "min": -32,
+      "max": 32,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "hitbox"
+    },
+    {
+      "path": "assets.tiles.#.model",
+      "type": "string",
+      "label": "地面/ブロックのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.color",
+      "type": "color",
+      "label": "地面/ブロックの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.#.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.model",
+      "type": "string",
+      "label": "トゲのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.color",
+      "type": "color",
+      "label": "トゲの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.^.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.model",
+      "type": "string",
+      "label": "コインのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.color",
+      "type": "color",
+      "label": "コインの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.o.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.model",
+      "type": "string",
+      "label": "ゴールのモデル(GLBのパス。空=プリミティブ)",
+      "default": null,
+      "nullable": true,
+      "maxLength": 200,
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\\.glb$",
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.color",
+      "type": "color",
+      "label": "ゴールの色(空=標準)",
+      "default": null,
+      "nullable": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.scale",
+      "type": "number",
+      "label": "スケール(1=1タイル)",
+      "min": 0.05,
+      "max": 10,
+      "step": 0.05,
+      "default": 1,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.yaw",
+      "type": "number",
+      "label": "向き補正(度)",
+      "min": -180,
+      "max": 180,
+      "step": 5,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetX",
+      "type": "number",
+      "label": "位置合わせ X(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetY",
+      "type": "number",
+      "label": "位置合わせ Y(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    },
+    {
+      "path": "assets.tiles.G.offsetZ",
+      "type": "number",
+      "label": "位置合わせ Z(px)",
+      "min": -64,
+      "max": 64,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "tile"
+    }
+  ],
+  "defaultGame": {
+    "meta": {
+      "title": "はじめてのステージ"
+    },
+    "physics": {
+      "gravity": 1800,
+      "moveSpeed": 200,
+      "jumpVelocity": 620,
+      "accel": 14,
+      "coyoteTime": 0.08,
+      "jumpBuffer": 0.1
+    },
+    "enemy": {
+      "speed": 50
+    },
+    "theme": {
+      "sky": "#bfe3ff",
+      "ground": "#6b4a2b",
+      "player": "#e4572e"
+    },
+    "level": [
+      "........................................",
+      "........................................",
+      "........................................",
+      "........................................",
+      "..............ooo..........ooo..........",
+      "........................................",
+      "...........####.........#####...........",
+      "........................................",
+      "..........o......o..............o.......",
+      ".P.........o....E.o...E..o....^^......G.",
+      "##########..##############...###########",
+      "##########..##############...###########"
+    ]
+  },
+  "uploads": {
+    "maxBytes": 5242880,
+    "maxFilesPerGame": 30,
+    "maxTotalBytesPerGame": 41943040,
+    "maxVertices": 300000,
+    "extension": "glb"
+  },
+  "history": {
+    "keep": 200,
+    "slack": 50,
+    "recent": 20,
+    "proposalDays": 14,
+    "pendingProposalDays": 3
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "tileSize": 32,
   "level": {
     "maxRows": 60,
@@ -21,9 +21,6 @@
     },
     "o": {
       "name": "コイン"
-    },
-    "E": {
-      "name": "歩く敵"
     },
     "G": {
       "name": "ゴール"
@@ -101,14 +98,44 @@
       "slider": true
     },
     {
-      "path": "enemy.speed",
+      "path": "player.hp",
       "type": "number",
-      "label": "敵の速度",
+      "label": "体力(ハート)",
+      "min": 1,
+      "max": 9,
+      "step": 1,
+      "default": 1,
+      "slider": true,
+      "group": "stats"
+    },
+    {
+      "path": "player.lives",
+      "type": "number",
+      "label": "残機(0=無制限)",
       "min": 0,
-      "max": 150,
-      "step": 5,
-      "default": 50,
-      "slider": true
+      "max": 9,
+      "step": 1,
+      "default": 0,
+      "slider": true,
+      "group": "stats"
+    },
+    {
+      "path": "player.doubleJump",
+      "type": "bool",
+      "label": "二段ジャンプ",
+      "default": false,
+      "group": "stats"
+    },
+    {
+      "path": "player.hurtInvincible",
+      "type": "number",
+      "label": "ダメージ後の無敵(秒)",
+      "min": 0,
+      "max": 5,
+      "step": 0.1,
+      "default": 1.5,
+      "slider": true,
+      "group": "stats"
     },
     {
       "path": "theme.sky",
@@ -891,6 +918,7 @@
     }
   ],
   "defaultGame": {
+    "formatVersion": 2,
     "meta": {
       "title": "はじめてのステージ"
     },
@@ -901,9 +929,6 @@
       "accel": 14,
       "coyoteTime": 0.08,
       "jumpBuffer": 0.1
-    },
-    "enemy": {
-      "speed": 50
     },
     "theme": {
       "sky": "#bfe3ff",
@@ -938,5 +963,222 @@
     "recent": 20,
     "proposalDays": 14,
     "pendingProposalDays": 3
-  }
+  },
+  "formatVersion": 2,
+  "symbols": {
+    "reserved": ".#^oGP",
+    "pool": "ABCDEFHIJKLMNOQRSTUVWXYZ0123456789*+=~!@%&?$"
+  },
+  "collections": [
+    {
+      "path": "enemyTypes",
+      "kind": "enemy",
+      "label": "敵の種類",
+      "idPrefix": "enemy",
+      "newLabel": "新しい敵",
+      "max": 12,
+      "itemFields": [
+        {
+          "key": "symbol",
+          "type": "symbol",
+          "label": "ステージ上の記号"
+        },
+        {
+          "key": "label",
+          "type": "string",
+          "label": "名前",
+          "maxLength": 20,
+          "default": "敵"
+        },
+        {
+          "key": "behavior",
+          "type": "enum",
+          "label": "動き",
+          "values": [
+            "walk",
+            "fly"
+          ],
+          "valueLabels": [
+            "歩く(端・壁で反転)",
+            "飛ぶ(往復+上下)"
+          ],
+          "default": "walk"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "label": "速度",
+          "min": 0,
+          "max": 150,
+          "step": 5,
+          "default": 50,
+          "slider": true
+        },
+        {
+          "key": "amp",
+          "type": "number",
+          "label": "上下のゆれ幅(タイル・飛ぶ敵)",
+          "min": 0,
+          "max": 4,
+          "step": 0.25,
+          "default": 1,
+          "slider": true
+        },
+        {
+          "key": "stompable",
+          "type": "bool",
+          "label": "上から踏んで倒せる",
+          "default": true
+        },
+        {
+          "key": "color",
+          "type": "color",
+          "label": "色(空=標準)",
+          "default": null,
+          "nullable": true
+        }
+      ],
+      "defaultValue": {
+        "walker": {
+          "symbol": "E",
+          "label": "歩く敵",
+          "behavior": "walk",
+          "speed": 50,
+          "amp": 1,
+          "stompable": true,
+          "color": null
+        },
+        "flyer": {
+          "symbol": "F",
+          "label": "飛ぶ敵",
+          "behavior": "fly",
+          "speed": 40,
+          "amp": 1.5,
+          "stompable": true,
+          "color": "#d9822b"
+        },
+        "spiky": {
+          "symbol": "X",
+          "label": "トゲの敵",
+          "behavior": "walk",
+          "speed": 30,
+          "amp": 1,
+          "stompable": false,
+          "color": "#2a8a4a"
+        }
+      }
+    },
+    {
+      "path": "items",
+      "kind": "item",
+      "label": "アイテム",
+      "idPrefix": "item",
+      "newLabel": "新しいアイテム",
+      "max": 16,
+      "itemFields": [
+        {
+          "key": "symbol",
+          "type": "symbol",
+          "label": "ステージ上の記号"
+        },
+        {
+          "key": "label",
+          "type": "string",
+          "label": "名前",
+          "maxLength": 20,
+          "default": "アイテム"
+        },
+        {
+          "key": "effect",
+          "type": "enum",
+          "label": "効果",
+          "values": [
+            "heal",
+            "life",
+            "invincible",
+            "jumpBoost",
+            "speedBoost",
+            "doubleJump"
+          ],
+          "valueLabels": [
+            "体力を回復",
+            "残機を増やす",
+            "無敵",
+            "ジャンプ力アップ",
+            "移動速度アップ",
+            "二段ジャンプ"
+          ],
+          "default": "heal"
+        },
+        {
+          "key": "amount",
+          "type": "number",
+          "label": "量(回復量・倍率)",
+          "min": 0.5,
+          "max": 5,
+          "step": 0.05,
+          "default": 1,
+          "slider": true
+        },
+        {
+          "key": "duration",
+          "type": "number",
+          "label": "効果の時間(秒。0=ミスするまで)",
+          "min": 0,
+          "max": 60,
+          "step": 1,
+          "default": 10,
+          "slider": true
+        },
+        {
+          "key": "color",
+          "type": "color",
+          "label": "色",
+          "default": "#ff4d6d"
+        }
+      ],
+      "defaultValue": {
+        "heart": {
+          "symbol": "H",
+          "label": "ハート",
+          "effect": "heal",
+          "amount": 1,
+          "duration": 0,
+          "color": "#ff4d6d"
+        },
+        "star": {
+          "symbol": "*",
+          "label": "スター",
+          "effect": "invincible",
+          "amount": 1,
+          "duration": 8,
+          "color": "#ffd60a"
+        },
+        "boots": {
+          "symbol": "B",
+          "label": "ブーツ",
+          "effect": "jumpBoost",
+          "amount": 1.25,
+          "duration": 10,
+          "color": "#4dabf7"
+        },
+        "wings": {
+          "symbol": "W",
+          "label": "つばさ",
+          "effect": "doubleJump",
+          "amount": 1,
+          "duration": 15,
+          "color": "#e9ecef"
+        },
+        "life": {
+          "symbol": "L",
+          "label": "1UP",
+          "effect": "life",
+          "amount": 1,
+          "duration": 0,
+          "color": "#51cf66"
+        }
+      }
+    }
+  ]
 }

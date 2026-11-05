@@ -25,6 +25,9 @@ fresh() { rm -rf "$DATA/demo" uploads/demo; } # 画面テストは毎回、初�
 run() { echo "== $1"; shift; case "$1" in bash) fresh;; esac; "$@" || { echo "!! 失敗: $*"; FAIL=1; }; }
 run "JS↔PHP 検証の一致"            tests/parity.sh
 run "エンジン等価(元プロトタイプ)"  node tests/engine_equivalence.mjs
+run "新しい形式(v2)のスキーマ"       node tests/schema_v2.mjs
+run "古い形式(v1)のファイルが開ける" node tests/golden.mjs
+run "エンジンの新機能"               node tests/engine_features.mjs
 run "PNGへのJSON埋め込み"            node tests/png.mjs
 run "テンプレート(検証・クリア可能)" node tests/templates.mjs
 run "GLB検証のJS↔PHP一致"          node tests/parity_glb.mjs
@@ -43,6 +46,7 @@ e2e() { # $1=表示名 $2=スクリプト名 [ENV=値 ...]
 if [ -z "${NO_E2E:-}" ]; then
   export NODE_PATH=$(npm root -g)
   e2e "e2e_local(ブラウザ保存・PHPなし)" e2e_local LOCAL_BASE=http://127.0.0.1:$LPORT
+  e2e "e2e_features(新機能・PHPなし)" e2e_features LOCAL_BASE=http://127.0.0.1:$LPORT
   e2e "e2e_editor(ナビゲーション・レイアウト)" e2e_editor
   e2e "e2e_login(ログイン)" e2e_login AUTH_BASE=http://127.0.0.1:$APORT AUTH_PASSWORD="$APASS"
   for t in e2e_stage e2e_dashboard e2e_3d e2e_no_webgl e2e_models e2e_broken_glb e2e_assets; do e2e "$t" "$t"; done

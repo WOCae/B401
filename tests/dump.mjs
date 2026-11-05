@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { validateGame, clone } from "../js/schema.js";
 import { diagnose } from "../js/diagnose.js";
 import { applyPatchOps } from "../js/patch.js";
-const schema = JSON.parse(readFileSync(new URL("../schema/game.schema.json", import.meta.url)));
+const schema = JSON.parse(readFileSync(new URL("../schema/server.schema.json", import.meta.url)));
 const cases = JSON.parse(readFileSync(new URL("./cases.json", import.meta.url)));
 const gen = c => {
   if (c.gen === "rows61") return { level: Array.from({ length: 61 }, (_, i) => i ? "." : "P") };

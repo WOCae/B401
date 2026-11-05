@@ -11,23 +11,34 @@ export const SECTIONS = [
   { id: "camera", group: "シーン", title: "カメラ・表示", ico: "◎", subs: [
     { key: "render", title: "表示", match: f => f.path === "render.mode" || f.path === "render.depth" || f.path === "render.lighting" },
     { key: "camera", title: "カメラ", match: f => f.path.startsWith("render.camera.") }] },
-  ...["player", "enemy"].map(who => ({ id: who, group: "キャラクター", title: who === "player" ? "プレイヤー" : "敵", ico: who === "player" ? "☺" : "☻", subs: [
+  ...["player", "enemy"].map(who => ({ id: who, group: "キャラクター", title: who === "player" ? "プレイヤー" : "敵(見た目・当たり判定)", ico: who === "player" ? "☺" : "☻", subs: [
+    ...(who === "player" ? [{ key: "stats", title: "ステータス(体力・残機・能力)", match: f => f.group === "stats" }] : []),
     ...(who === "enemy" ? [{ key: "behavior", title: "動き", match: f => f.path === "enemy.speed" }] : []),
     { key: "look", title: "見た目(プリミティブ)", match: f => startsAny(f, `assets.${who}.primitive.`) || (who === "player" && f.path === "theme.player") },
     { key: "model", title: "モデル(GLB)", match: f => f.group === "model" && f.path.startsWith(`assets.${who}.`),
       note: '<div class="mute modelinfo-wrap"><span id="modelinfo-' + who + '"></span><br>パスは assets/samples/player.glb のように指定(空=プリミティブ)。スケール1=1タイル(32px)、正面は+Z。読み込めない場合はプリミティブのまま動きます。</div>' },
     { key: "hitbox", title: "ヒットボックス(当たり判定)", match: f => f.group === "hitbox" && f.path.startsWith(`assets.${who}.`),
       note: '<div class="mute">当たり判定は見た目のモデルとは独立です。ox/oy は「モデルの原点から見たヒットボックス下端中央」(右・上が+)。変更するとリスタートします。</div>' }] })),
+  { id: "enemytypes", group: "キャラクター", title: "敵の種類", ico: "☠", collection: "enemyTypes" },
+  { id: "items", group: "アイテム", title: "アイテム・パワーアップ", ico: "★", collection: "items" },
   ...TILE.map(([id, sym, title, ico]) => ({ id: "tile_" + id, group: "タイル", title, ico, subs: [
     { key: "tile", title: "モデル(GLB)・色", match: f => f.group === "tile" && f.path.startsWith(`assets.tiles.${sym}.`),
       note: '<div class="mute">タイル用モデルの原点は「タイルの下端中央」(1タイル=1単位)。見た目だけが変わり、当たり判定はそのままです。未指定・読み込み失敗ならプリミティブで表示します。</div>' }] })),
 ];
 
+/** スキーマが持つ一覧(collections)に対応するセクションだけを出す(サーバー保存モードの旧スキーマでは出ない) */
+export const visibleSections = schema => SECTIONS.filter(s => !s.collection || (schema.collections || []).some(c => c.path === s.collection));
+
 /** インスペクタの枠を作る。戻り値: [{el, fields}] — 呼び出し側が各 el にコントロールを作る */
 export function buildInspector(schema) {
   const body = document.getElementById("inspBody"), out = [];
-  for (const s of SECTIONS) {
+  for (const s of visibleSections(schema)) {
     const sec = document.createElement("section"); sec.dataset.for = s.id; sec.hidden = true;
+    if (s.collection) { // 一覧エディタ(中身は collections.js が作る)
+      const el = document.createElement("div"); el.id = `ic_${s.id}_list`; el.className = "collection"; sec.appendChild(el);
+      out.push({ el, collection: schema.collections.find(c => c.path === s.collection) });
+      body.appendChild(sec); continue;
+    }
     for (const sub of s.subs) {
       const fields = schema.fields.filter(sub.match);
       if (!fields.length) continue;
@@ -46,11 +57,12 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* 保存できなくても動く */ } },
 };
 
-export function initHierarchy() {
+export function initHierarchy(schema) {
   if (location.search.includes("showall")) document.documentElement.dataset.showall = "1"; // 検証用: 全パネルを同時表示
   const list = document.getElementById("hierList");
   let last = "";
-  for (const s of SECTIONS) {
+  const secs = schema ? visibleSections(schema) : SECTIONS;
+  for (const s of secs) {
     if (s.group !== last) { last = s.group; const g = document.createElement("div"); g.className = "hgroup"; g.textContent = s.group; list.appendChild(g); }
     const b = document.createElement("button"); b.className = "hitem"; b.dataset.sel = s.id; b.id = "h_" + s.id;
     b.innerHTML = `<span class="ico">${s.ico}</span><span></span>`; b.lastChild.textContent = s.title;
@@ -58,10 +70,10 @@ export function initHierarchy() {
     list.appendChild(b);
   }
   function select(id) {
-    if (!SECTIONS.some(s => s.id === id)) id = "world";
+    if (!secs.some(s => s.id === id)) id = "world";
     document.querySelectorAll("#hierList .hitem").forEach(b => b.classList.toggle("on", b.dataset.sel === id));
     document.querySelectorAll("#inspBody > section").forEach(sec => { sec.hidden = sec.dataset.for !== id; });
-    document.getElementById("inspTitle").textContent = "インスペクタ: " + SECTIONS.find(s => s.id === id).title;
+    document.getElementById("inspTitle").textContent = "インスペクタ: " + secs.find(s => s.id === id).title;
     store.set("sel", id);
   }
   select(store.get("sel", "world"));

@@ -2,10 +2,10 @@
 // 編集中はゲームを止めて2D表示にし、1回のストローク(押してから離すまで)を1つの履歴として保存する。
 // 保存は既存の経路(検証→サーバー→履歴)を通る。壊れる操作(Pの削除など)は適用前に止める。
 import { T, VW, VH, Engine } from "./engine.js";
-import { BRUSHES, pad, paint, rectCells, lineCells, fill, resize, size } from "./level.js";
+import { pad, paint, rectCells, lineCells, fill, resize, size } from "./level.js";
+import { legendOf, brushOrder, DEFAULT_ENEMY_COLOR } from "./legend.js";
 
-const COLORS = { ".": "#bfe3ff", "#": "#6b4a2b", "^": "#4a4f57", o: "#f5b800", E: "#7a3fb0", G: "#d9342b", P: "#e4572e" };
-const KEYS = Object.fromEntries(BRUSHES.map((b, i) => [String(i + 1), b]));
+const BASE_COLORS = { ".": "#bfe3ff", "#": "#6b4a2b", "^": "#4a4f57", o: "#f5b800", G: "#d9342b", P: "#e4572e" };
 
 /**
  * hooks: { getGame(), commitLevel(rows,label)→Promise, say(msg,kind,ms), schema, $ }
@@ -68,7 +68,7 @@ export class StageEditor {
     }
     if (this.hover) {
       const [x, y] = this.hover; c.lineWidth = 2 / z; c.strokeStyle = this.stroke && this.stroke.erase ? "#ff3b30" : "#fff"; c.strokeRect(x * T + 1, y * T + 1, T - 2, T - 2);
-      c.globalAlpha = .55; c.fillStyle = COLORS[this.stroke && this.stroke.erase ? "." : this.brush]; if ((this.stroke && this.stroke.erase ? "." : this.brush) !== ".") c.fillRect(x * T + 4, y * T + 4, T - 8, T - 8); c.globalAlpha = 1;
+      c.globalAlpha = .55; c.fillStyle = this.colorOf(this.stroke && this.stroke.erase ? "." : this.brush); if ((this.stroke && this.stroke.erase ? "." : this.brush) !== ".") c.fillRect(x * T + 4, y * T + 4, T - 8, T - 8); c.globalAlpha = 1;
     }
   }
   drawHud(c) {
@@ -101,7 +101,8 @@ export class StageEditor {
     }, { passive: false });
     addEventListener("keydown", e => {
       if (!this.active || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (KEYS[e.key]) { this.setBrush(KEYS[e.key]); e.preventDefault(); }
+      const bi = "123456789".indexOf(e.key); // 数字キー = ブラシの並び順(凡例から自動で決まる)
+      if (bi >= 0 && this.brushes[bi] !== undefined) { this.setBrush(this.brushes[bi]); e.preventDefault(); }
       else if (e.key === "b" || e.key === "B") this.setTool("pencil");
       else if (e.key === "r" || e.key === "R") this.setTool("rect");
       else if (e.key === "f" || e.key === "F") this.setTool("fill");
@@ -149,6 +150,26 @@ export class StageEditor {
     try { await this.h.commitLevel(rows, `ステージ編集: ${label}`); } finally { this.pending--; this.sync(); }
   }
 
+  /* ---------- ブラシ(凡例から自動生成: 基本のタイル + 敵の種類 + アイテム) ---------- */
+  colorOf(ch) { const l = this.legend && this.legend.get(ch); return l && l.kind === "enemy" ? (l.def.color || DEFAULT_ENEMY_COLOR) : l && l.kind === "item" ? l.def.color : BASE_COLORS[ch] || "#888"; }
+  /** ゲーム定義が変わったときに呼ぶ。ブラシの並びや色が変わったときだけ作り直す */
+  refreshBrushes() {
+    const g = this.h.getGame(); if (!g) return;
+    this.legend = legendOf(g); this.brushes = brushOrder(g);
+    const sig = this.brushes.map(b => b + this.colorOf(b) + (this.legend.get(b) || {}).label).join("|");
+    if (!this.brushes.includes(this.brush)) this.brush = "#";
+    if (!this.root || sig === this.brushSig) return;
+    this.brushSig = sig;
+    const bx = this.root.querySelector("#brushes"); bx.innerHTML = "";
+    this.brushes.forEach((b, i) => {
+      const label = b === "." ? "消しゴム" : this.legend.get(b).label;
+      const btn = document.createElement("button"); btn.className = "brush"; btn.dataset.ch = b; btn.title = `${label}${i < 9 ? ` (${i + 1})` : ""}`;
+      btn.innerHTML = `<span class="sw" style="background:${this.colorOf(b)}"></span><span class="bl"></span>`; btn.lastChild.textContent = label;
+      btn.onclick = () => this.setBrush(b); bx.appendChild(btn);
+    });
+    this.syncUI();
+  }
+
   /* ---------- 操作(パレットから) ---------- */
   setBrush(ch) { this.enter(); this.brush = ch; this.syncUI(); }
   setTool(t) { this.enter(); this.tool = t; this.syncUI(); }
@@ -163,7 +184,6 @@ export class StageEditor {
 
   /* ---------- パレットUI ---------- */
   buildPalette(root) {
-    const names = this.h.schema.tiles, $ = this.h.$;
     root.innerHTML = `
 <div class="bar"><span class="mute">ブラシ</span><div id="brushes" class="brushes"></div></div>
 <div class="bar"><span class="mute">道具</span>
@@ -176,14 +196,9 @@ export class StageEditor {
   <span class="szgrp">左 <button data-r="left:1">＋</button><button data-r="left:-1">−</button></span>
   <span class="szgrp">右 <button data-r="right:1">＋</button><button data-r="right:-1">−</button></span></div>
 <div class="bar"><label class="mute">表示位置 X <input type="range" id="stX" min="0" max="0" step="8"></label><label class="mute">Y <input type="range" id="stY" min="0" max="0" step="8"></label></div>
-<p class="mute">クリック/ドラッグで配置、右クリックで消しゴム、ホイールまたは Alt+ドラッグで移動。キー: 1〜7=ブラシ、B/R/F=道具、Esc=終了。
+<p class="mute">クリック/ドラッグで配置、右クリックで消しゴム、ホイールまたは Alt+ドラッグで移動。キー: 数字=ブラシ(並び順)、B/R/F=道具、Esc=終了。敵の種類・アイテムは「ヒエラルキー」で追加すると、ここに増えます。
 1回の操作が1つの履歴になり、「元に戻す」で取り消せます。開始位置(P)は1個だけで、消さずに置き直すと移動します。</p>`;
-    const bx = root.querySelector("#brushes");
-    BRUSHES.forEach((b, i) => {
-      const btn = document.createElement("button"); btn.className = "brush"; btn.dataset.ch = b; btn.title = `${names[b].name} (${i + 1})`;
-      btn.innerHTML = `<span class="sw" style="background:${COLORS[b]}"></span><span class="bl"></span>`; btn.lastChild.textContent = b === "." ? "消しゴム" : names[b].name;
-      btn.onclick = () => this.setBrush(b); bx.appendChild(btn);
-    });
+    this.root = root; this.brushSig = ""; this.refreshBrushes();
     root.querySelectorAll("[data-tool]").forEach(b => { b.onclick = () => this.setTool(b.dataset.tool); });
     root.querySelector("#stGrid").onchange = e => { this.grid = e.target.checked; };
     root.querySelector("#stZoom").onchange = e => this.setZoom(+e.target.value);

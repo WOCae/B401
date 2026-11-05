@@ -3,8 +3,11 @@
 /** game は validateGame 済みのもの */
 export function diagnose(game, schema) {
   const T = schema.tileSize, ph = game.physics;
-  const jh = (ph.jumpVelocity * ph.jumpVelocity) / (2 * ph.gravity) / T;
-  const jd = ph.moveSpeed * (2 * ph.jumpVelocity / ph.gravity) / T;
+  let jh = (ph.jumpVelocity * ph.jumpVelocity) / (2 * ph.gravity) / T;
+  let jd = ph.moveSpeed * (2 * ph.jumpVelocity / ph.gravity) / T;
+  // 二段ジャンプ(頂点で2回目・初速0.9倍)なら、高さは約1.81倍・滞空時間(=距離)は約1.62倍
+  const dj = !!(game.player && game.player.doubleJump);
+  if (dj) { jh *= 1 + 0.81; jd *= (1 + 0.9 + Math.sqrt(1 + 0.81)) / 2; }
   const rows = game.level.map(r => Array.from(r));
   const H = rows.length, W = Math.max(...rows.map(r => r.length));
   let max = 0, run = 0;

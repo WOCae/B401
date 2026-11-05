@@ -15,6 +15,8 @@ import { initAssets, modelPathsOf } from "./assets.js";
 import { StageEditor } from "./stageeditor.js";
 import { drawThumb } from "./thumb.js";
 import { buildInspector, initHierarchy, initTabs, initTheme, initFit } from "./editor.js";
+import { createCollectionEditor, freeSymbols } from "./collections.js";
+import { DEFAULT_ENEMY_COLOR } from "./legend.js";
 
 const $ = id => document.getElementById(id);
 // 保存先: 既定は「このブラウザ内(IndexedDB)」。サーバー(PHP+ログイン)に保存したいときだけ URL に ?server=1 を付ける
@@ -50,7 +52,7 @@ function setGame(raw, { restart = true, version } = {}) {
   const ms = modelPathsOf(app.game);
   if (ms !== modelSig) { modelSig = ms; if (assetsUI) assetsUI.refresh(); }
   renderBackup();
-  if (editor) editor.sync(); // ステージ編集中に他の経路(元に戻す・JSON・提案)で変わったら取り込む
+  if (editor) { editor.refreshBrushes(); editor.sync(); } // ステージ編集中に他の経路(元に戻す・JSON・提案)で変わったら取り込む
   return v;
 }
 
@@ -59,30 +61,31 @@ function setGame(raw, { restart = true, version } = {}) {
 const pathGet = (g, p) => p.split(".").reduce((a, k) => a[k], g);
 const idOf = p => p.replace(/\./g, "_").replace(/#/g, "wall").replace(/\^/g, "spike");
 const setField = (path, v) => { const ks = path.split("."), last = ks.pop(); pathGet(app.game, ks.join("."))[last] = v; };
-const refreshers = [];
+const refreshers = [], collectionEditors = [];
 function setPathOn(o, path, v) { const ks = path.split("."), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
-function buildControls(container, fields) {
+function buildControls(container, fields, bag = refreshers) {
   container.innerHTML = "";
   for (const f of fields) {
     const id = "c_" + idOf(f.path), r = document.createElement("div"); r.className = "row";
-    const live = v => { setField(f.path, v); if (f.group === "hitbox") app.engine.restart(); renderDiag(); syncJson(); };
+    // 敵の設定は生成時に取り込むので、変えたらリスタートする(ヒットボックスも同様)
+    const live = v => { setField(f.path, v); if (f.group === "hitbox" || f.group === "enemyTypes") app.engine.restart(); renderDiag(); syncJson(); };
     const commit = () => commitGame(app.game, `${f.label}を調整`, { restart: false });
     if (f.type === "number") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}"><output></output>`;
       const inp = r.querySelector("input"), out = r.querySelector("output");
       inp.addEventListener("input", () => { out.textContent = inp.value; live(+inp.value); });
       inp.addEventListener("change", () => { inp.blur(); commit(); });
-      refreshers.push(() => { const v = pathGet(app.game, f.path); inp.value = v; out.textContent = v; });
+      bag.push(() => { const v = pathGet(app.game, f.path); inp.value = v; out.textContent = v; });
     } else if (f.type === "enum") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><select id="${id}">${f.values.map((v, i) => `<option value="${esc(v)}">${esc(f.valueLabels[i])}</option>`).join("")}</select><span></span>`;
       const sel = r.querySelector("select");
       sel.addEventListener("change", () => { live(sel.value); sel.blur(); commit(); });
-      refreshers.push(() => { sel.value = pathGet(app.game, f.path); });
+      bag.push(() => { sel.value = pathGet(app.game, f.path); });
     } else if (f.type === "bool") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="checkbox" id="${id}" style="justify-self:start"><span></span>`;
       const cb = r.querySelector("input");
       cb.addEventListener("change", () => { live(cb.checked); cb.blur(); commit(); });
-      refreshers.push(() => { cb.checked = pathGet(app.game, f.path); });
+      bag.push(() => { cb.checked = pathGet(app.game, f.path); });
     } else if (f.type === "string" && f.pattern !== undefined || f.type === "string" && f.nullable) {
       const isModel = f.path.endsWith(".model"), who = f.path.split(".")[1];
       const list = isModel ? "modelList" : (f.path.includes(".anim.") ? "clips_" + who : "");
@@ -94,29 +97,45 @@ function buildControls(container, fields) {
         const g = clone(app.game); setPathOn(g, f.path, v === "" ? null : v);
         ti.blur(); commitGame(g, `${f.label}を変更`, { restart: false });
       });
-      refreshers.push(() => { const v = pathGet(app.game, f.path); ti.value = v === null ? "" : v; });
+      bag.push(() => { const v = pathGet(app.game, f.path); ti.value = v === null ? "" : v; });
+    } else if (f.type === "string") { // 名前など(パス指定でも空許可でもない普通の文字列)
+      r.className = "row wide";
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="text" id="${id}" maxlength="${f.maxLength}" autocomplete="off">`;
+      const ti = r.querySelector("input");
+      ti.addEventListener("input", () => { live(ti.value || f.default); });
+      ti.addEventListener("change", () => { ti.blur(); commit(); });
+      bag.push(() => { if (document.activeElement !== ti) ti.value = pathGet(app.game, f.path); });
+    } else if (f.type === "symbol") { // ステージ上の記号。変えると、ステージに置いた同じ記号も一緒に書き換える
+      r.innerHTML = `<label for="${id}">${esc(f.label)}</label><select id="${id}" style="font-family:ui-monospace,monospace"></select><span></span>`;
+      const sel = r.querySelector("select");
+      sel.addEventListener("change", () => {
+        const g = JSON.parse(JSON.stringify(app.game)), old = pathGet(g, f.path), nu = sel.value; if (nu === old) return;
+        setPathOn(g, f.path, nu); g.level = g.level.map(row => row.split(old).join(nu)); sel.blur();
+        commitGame(g, "記号を変更", { restart: true });
+      });
+      bag.push(() => { const cur = pathGet(app.game, f.path), opts = [cur, ...freeSymbols(app.game, app.schema)]; sel.innerHTML = opts.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join(""); sel.value = cur; });
     } else if (f.type === "color") {
       r.innerHTML = `<label for="${id}">${esc(f.label)}</label><input type="color" id="${id}" style="justify-self:start"><span></span>`;
       const ci = r.querySelector("input"), tail = r.querySelector("span");
       const TILE_DEFAULT = { "#": () => app.game.theme.ground, "^": () => "#4a4f57", o: () => "#f5b800", G: () => "#d9342b" };
-      const fallback = () => f.path === "assets.player.primitive.color" ? app.game.theme.player : (f.path.startsWith("assets.tiles.") ? TILE_DEFAULT[f.path.split(".")[2]]() : "#000000");
+      const fallback = () => f.path === "assets.player.primitive.color" ? app.game.theme.player : (f.path.startsWith("assets.tiles.") ? TILE_DEFAULT[f.path.split(".")[2]]() : f.path.startsWith("enemyTypes.") ? DEFAULT_ENEMY_COLOR : "#000000");
       ci.addEventListener("input", () => live(ci.value));
       ci.addEventListener("change", () => { updateTail(); commit(); });
       let rb = null;
       const updateTail = () => {
         tail.innerHTML = ""; if (!f.nullable) return;
-        if (pathGet(app.game, f.path) === null) { tail.textContent = f.path.startsWith("assets.tiles.") ? "標準" : "テーマ色"; tail.className = "mute"; return; }
+        if (pathGet(app.game, f.path) === null) { tail.textContent = f.path.startsWith("assets.tiles.") || f.path.startsWith("enemyTypes.") ? "標準" : "テーマ色"; tail.className = "mute"; return; }
         rb = document.createElement("button"); rb.className = "mini"; rb.textContent = "×"; rb.title = "テーマ色に戻す";
         rb.onclick = () => { live(null); updateTail(); ci.value = fallback(); commit(); };
         tail.appendChild(rb);
       };
-      refreshers.push(() => { const v = pathGet(app.game, f.path); ci.value = v === null ? fallback() : v; updateTail(); });
+      bag.push(() => { const v = pathGet(app.game, f.path); ci.value = v === null ? fallback() : v; updateTail(); });
     }
     container.appendChild(r);
   }
 }
 function syncUI() {
-  refreshers.forEach(fn => fn()); renderDiag(); syncJson();
+  refreshers.forEach(fn => fn()); collectionEditors.forEach(ce => ce.sync()); renderDiag(); syncJson();
   const m = app.game.render.mode; $("mode2d").classList.toggle("on", m === "2d"); $("mode3d").classList.toggle("on", m === "3d");
 }
 /** 画面のどこからでも同じ経路で1項目を編集する(値を反映→サーバーに保存して履歴に残す) */
@@ -127,7 +146,7 @@ function syncJson() { if (document.activeElement !== $("json")) $("json").value 
 function renderDiag() {
   const d = diagnose(app.game, app.schema);
   const ok = d.gapsClearable;
-  $("diag").innerHTML = `<div>ジャンプの高さ: 約${d.jumpHeightTiles.toFixed(1)}タイル / 距離: 約${d.jumpDistanceTiles.toFixed(1)}タイル</div>
+  $("diag").innerHTML = `<div>ジャンプの高さ: 約${d.jumpHeightTiles.toFixed(1)}タイル / 距離: 約${d.jumpDistanceTiles.toFixed(1)}タイル${app.game.player && app.game.player.doubleJump ? "(二段ジャンプ込み)" : ""}</div>
  <div>ステージ内で最も広い穴: ${d.widestGapTiles}タイル</div>
  <div class="${ok ? "ok" : "warn"}">${ok ? "✓ すべての穴を飛び越せる見込みです。" : "⚠ 穴がジャンプ距離を超えています。クリアできない可能性があります。"}</div>
  <div class="mute">計算上の目安です。AI生成ステージはこの検証に通るまで再生成します。</div>`;
@@ -446,8 +465,11 @@ function loop(ts) {
     if (MODE === "server") document.body.classList.add("server-mode"); else document.body.classList.add("local-mode");
     await refreshAuth();
     app.schema = await api.getSchema();
-    for (const { el, fields } of buildInspector(app.schema)) buildControls(el, fields); // 対象ごとのインスペクタ(スキーマから自動生成)
-    initHierarchy(); openTab = initTabs(); initTheme(); initFit();
+    for (const { el, fields, collection } of buildInspector(app.schema)) { // 対象ごとのインスペクタ(スキーマから自動生成)
+      if (collection) collectionEditors.push(createCollectionEditor(el, collection, { getGame: () => app.game, schema: app.schema, buildControls, commit: (g, label, o) => commitGame(g, label, o), say, esc, clone: o => JSON.parse(JSON.stringify(o)) }));
+      else buildControls(el, fields);
+    }
+    initHierarchy(app.schema); openTab = initTabs(); initTheme(); initFit();
     editor = new StageEditor({
       getGame: () => app.game, commitLevel, say, schema: app.schema, $,
       onToggle: on => { $("editBtn").classList.toggle("on", on); $("stage").classList.toggle("editing", on); if (on) { openTab("stage"); acc = 0; } else app.engine.restart(); },

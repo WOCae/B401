@@ -129,3 +129,8 @@ dialog.wide{width:min(780px,94vw);max-height:92vh;overflow:auto}
 .step{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .step p{margin:4px 0 0;font-size:12px}
 kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--bg)}
+.chead{display:flex;justify-content:space-between;align-items:center;margin:6px 0}
+.centry{border:1px solid var(--line);border-radius:8px;margin:6px 0;padding:2px 8px;background:var(--panel2)}
+.centry summary{display:flex;gap:8px;align-items:center;padding:4px 0}
+.centry .sym{display:inline-block;min-width:1.6em;text-align:center;font:700 12px ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.cbody{padding:2px 0 4px}

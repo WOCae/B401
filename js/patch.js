@@ -51,11 +51,16 @@ function whoOf(dot) { // assets.<対象>.… の対象名(差分表示で「ど�
 /** 差分を人が読める1行にする(UI表示用) */
 export function describeOp(op, game, schema) {
   const dot = op.path.slice(1).split("/").join(".");
-  const f = schema.fields.find(x => x.path === dot);
+  let f = schema.fields.find(x => x.path === dot);
+  let collLabel = "";
+  if (!f) { // 一覧型(enemyTypes.walker.speed など): 「歩く敵の速度」のように名前つきで表示
+    const [c, id, key] = dot.split("."), coll = (schema.collections || []).find(x => x.path === c), cf = coll && coll.itemFields.find(x => x.key === key);
+    if (cf) { f = { ...cf, label: cf.label }; const entry = getPath(game, `${c}.${id}`); collLabel = entry ? `[${entry.label}] ` : ""; }
+  }
   const old = getPath(game, dot);
   if (f && op.op === "replace") {
     const who = whoOf(dot);
-    return `${who && !f.label.includes(who.replace(/\(.*\)/, "")) ? "[" + who + "] " : ""}${f.label}: ${old} → ${op.value}`;
+    return `${collLabel}${who && !f.label.includes(who.replace(/\(.*\)/, "")) ? "[" + who + "] " : ""}${f.label}: ${old} → ${op.value}`;
   }
   const m = /^\/level\/(\d+)$/.exec(op.path);
   if (m && op.op === "replace" && typeof op.value === "string") {

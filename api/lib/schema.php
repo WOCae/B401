@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 // ゲーム定義の検証・診断・差分適用。js/schema.js / js/diagnose.js / js/patch.js と同じ規則。
-// ルールは schema/game.schema.json を読む(JSと共有)。
+// ルールは schema/server.schema.json を読む(サーバー保存モード用に凍結した v1。ブラウザ保存の新機能 v2 は schema/game.schema.json)。
 
 namespace PM;
 
@@ -17,7 +17,7 @@ function schema_load(): array
 {
     static $s = null;
     if ($s === null) {
-        $s = json_decode((string)file_get_contents(PM_ROOT . '/schema/game.schema.json'), true, 512, JSON_THROW_ON_ERROR);
+        $s = json_decode((string)file_get_contents(PM_ROOT . '/schema/server.schema.json'), true, 512, JSON_THROW_ON_ERROR);
     }
     return $s;
 }

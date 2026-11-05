@@ -25,7 +25,7 @@ const msg = (t, show = true) => { const el = $("pmsg"); el.textContent = t; el.c
 /** プロジェクトファイルの内容(JSON)を検証し、同梱GLBを Blob URL にして取り出す */
 function readProject(p) {
   if (!p || p.format !== FORMAT) throw new Error("このツールのプロジェクトファイルではありません");
-  if (typeof p.version !== "number" || p.version > 1) throw new Error("新しい形式のファイルです。ツールを更新してください");
+  if (typeof p.version !== "number" || p.version > 2) throw new Error("新しい形式のファイルです。ツールを更新してください");
   const v = validateGame(p.game, S.schema);
   if (!v.ok) throw new Error("ゲーム定義が不正です: " + v.errors.map(e => e.message).join(" / "));
   const L = S.schema.uploads;

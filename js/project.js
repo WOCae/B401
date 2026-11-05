@@ -24,7 +24,7 @@ async function buildProject(backend, gameId) {
     if (!path.startsWith("uploads/")) continue;
     try { assets.push({ path, name: path.split("/").pop(), data: bytesToB64(await backend.getAssetBytes(path)) }); } catch { /* 欠けているモデルは省く(プリミティブで表示される) */ }
   }
-  return { project: { format: FORMAT, version: 1, exportedAt: new Date().toISOString(), title: g.game.meta.title, game: g.game, assets }, version: g.version, title: g.game.meta.title };
+  return { project: { format: FORMAT, version: 2, exportedAt: new Date().toISOString(), title: g.game.meta.title, game: g.game, assets }, version: g.version, title: g.game.meta.title };
 }
 
 /** ゲームを1つのプロジェクト(JSON)にまとめる。ブラウザ内/サーバー上のGLBも埋め込む(サンプルは同梱ファイルなので参照のみ) */
@@ -63,7 +63,7 @@ export async function importProject(backend, input) {
     try { p = JSON.parse(input); } catch { throw new Error("プロジェクトファイル(JSON)として読み取れません"); }
   }
   if (!p || typeof p !== "object" || p.format !== FORMAT) throw new Error("このツールのプロジェクトファイルではありません");
-  if (typeof p.version !== "number" || p.version > 1) throw new Error("新しい形式のファイルです。ツールを更新してください");
+  if (typeof p.version !== "number" || p.version > 2) throw new Error("新しい形式のファイルです。ツールを更新してください");
   const v = validateGame(p.game, schema);
   if (!v.ok) throw new Error("ゲーム定義が不正です: " + v.errors.map(e => e.message).join(" / "));
   const assets = Array.isArray(p.assets) ? p.assets : [];

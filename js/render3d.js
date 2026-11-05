@@ -189,6 +189,12 @@ export class Renderer3D {
       const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.08, 20); geo.rotateX(Math.PI / 2);
       add(cells.o, prim(geo, mat(col("o", 0xf5b800), { emissive: 0x5a4200 })), (x, y) => [x + 0.5, H - y - 0.5, 0], flat, true);
     }, true);
+    // アイテム(種類ごとの色の宝石形。回転し、取得済みは非表示。コインと同じ仕組み)
+    const itemCells = {};
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const lg = eng.legend.get(grid[y][x]); if (lg && lg.kind === "item") (itemCells[lg.id] ||= { color: lg.def.color, list: [] }).list.push([x, y]); }
+    for (const it of Object.values(itemCells)) {
+      add(it.list, prim(new THREE.OctahedronGeometry(0.3), mat(it.color, { emissive: new THREE.Color(it.color).multiplyScalar(0.35) })), (x, y) => [x + 0.5, H - y - 0.5, 0], flat, true);
+    }
     this.recs = recs; this.stage = g; this.scene.add(g);
   }
 
@@ -245,7 +251,7 @@ export class Renderer3D {
     if (this.chars) { this.scene.remove(this.chars); disposeTree(this.chars); }
     const a = eng.def.assets, g = new THREE.Group();
     this.player = new Actor(this, "player"); this.player.configure(a.player, a.player.primitive.color || eng.def.theme.player); g.add(this.player.anchor);
-    this.enemies = eng.S.en.map(() => { const m = new Actor(this, "enemy"); m.configure(a.enemy, a.enemy.primitive.color); g.add(m.anchor); return m; });
+    this.enemies = eng.S.en.map(e => { const m = new Actor(this, "enemy"); m.configure(a.enemy, e.color || a.enemy.primitive.color); g.add(m.anchor); return m; }); // 種類ごとの色(モデル指定時はモデルの色)
     // ヒットボックスのワイヤーフレーム(デバッグ表示。深度テストなしで常に手前)
     const rect = new THREE.BufferGeometry().setFromPoints([[-.5, 0], [.5, 0], [.5, 1], [-.5, 1]].map(([x, y]) => new THREE.Vector3(x, y, 0)));
     const mk = color => { const l = new THREE.LineLoop(rect, new THREE.LineBasicMaterial({ color, depthTest: false })); l.renderOrder = 999; l.visible = false; g.add(l); return l; };
@@ -258,8 +264,8 @@ export class Renderer3D {
     const def = eng.def, R = def.render, S = eng.S, H = eng.H, W = eng.W, A = def.assets;
     this.t += dt;
     // 作り直しが必要な変更だけをシグネチャに入れる(スケール・向き・オフセット等は毎フレーム反映)
-    const sig = JSON.stringify([A.player.primitive, A.enemy.primitive, A.player.model, A.enemy.model, def.theme.player, this.versionsJson]);
-    const stageSig = JSON.stringify([R.depth, def.theme.ground, A.tiles, this.versionsJson, this.ready.size]);
+    const sig = JSON.stringify([A.player.primitive, A.enemy.primitive, A.player.model, A.enemy.model, def.theme.player, this.versionsJson, def.enemyTypes]);
+    const stageSig = JSON.stringify([R.depth, def.theme.ground, A.tiles, this.versionsJson, this.ready.size, def.items]);
     const levelChanged = this.levelRef !== def.level || this.eng !== eng;
     if (levelChanged || sig !== this.sig) { this.buildStage(eng); this.buildChars(eng); this.levelRef = def.level; this.eng = eng; this.sig = sig; this.stageSig = stageSig; this.cam = null; }
     else if (stageSig !== this.stageSig || this.dirty) { this.buildStage(eng); this.stageSig = stageSig; }
@@ -271,6 +277,9 @@ export class Renderer3D {
     if (p.vx > 5) this.pFace = 1; else if (p.vx < -5) this.pFace = -1;
     const key = p.on ? (Math.abs(p.vx) > 20 ? "run" : "idle") : (p.vy < 0 ? "jump" : "fall");
     this.player.update(A.player, p, H, this.pFace, dt, key, key === "run" ? Math.max(0.4, Math.abs(p.vx) / ph.moveSpeed) : 1, key === "jump");
+    this.player.anchor.visible = !(p.iframes > 0 && Math.floor(S.t * 12) % 2 === 0); // ダメージ後の無敵中は点滅
+    const body = this.player.prim && this.player.prim.children[0];
+    if (body && body.material && body.material.emissive) body.material.emissive.setHex(p.fx.invincible !== undefined ? 0x996600 : 0x000000); // 無敵中は発光
     S.en.forEach((e, i) => { const m = this.enemies[i]; m.anchor.visible = e.alive; m.update(A.enemy, e, H, e.d, dt, "walk", 1, false); });
 
     // ヒットボックス(物理の当たり判定そのもの)

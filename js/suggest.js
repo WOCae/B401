@@ -4,13 +4,23 @@
 import { getPath } from "./schema.js";
 
 const field = (schema, path) => schema.fields.find(f => f.path === path);
+/** enemyTypes.walker.speed のような一覧型の項目の定義を探す */
+function collField(schema, path) {
+  const [c, , key] = path.split(".");
+  const coll = (schema.collections || []).find(x => x.path === c);
+  return coll && coll.itemFields.find(f => f.key === key);
+}
+/** 歩く敵の速度の場所(新形式は敵の種類、旧形式は enemy.speed) */
+const speedPath = game => (game.enemyTypes ? "enemyTypes.walker.speed" : "enemy.speed");
 const ptr = path => "/" + path.split(".").join("/");
 
 /** 現在値と違うときだけ replace を返す(数値は範囲に丸める) */
 function setOp(schema, game, path, value) {
+  if (getPath(game, path) === undefined) return null; // その項目を持たない形式(旧スキーマ等)には提案しない
   const f = field(schema, path);
   let v = value;
-  if (f && f.type === "number") v = +Math.min(f.max, Math.max(f.min, value)).toFixed(2);
+  const nf = f || collField(schema, path);
+  if (nf && nf.type === "number") v = +Math.min(nf.max, Math.max(nf.min, value)).toFixed(2);
   return getPath(game, path) === v ? null : { op: "replace", path: ptr(path), value: v };
 }
 const ops = list => list.filter(Boolean);
@@ -19,9 +29,9 @@ const numOps = (schema, game, items) => ops(items.map(([path, f]) => setOp(schem
 /* ---------- ゲーム性 ---------- */
 const GAME = {
   "もう少し簡単に": (game, schema) => ({ title: "もう少し簡単に", ops: numOps(schema, game, [
-    ["physics.jumpVelocity", v => v * 1.08], ["physics.coyoteTime", v => v + .04], ["enemy.speed", v => v * .8]]) }),
+    ["physics.jumpVelocity", v => v * 1.08], ["physics.coyoteTime", v => v + .04], [speedPath(game), v => v * .8]]) }),
   "もう少し難しく": (game, schema) => ({ title: "もう少し難しく", ops: numOps(schema, game, [
-    ["physics.jumpVelocity", v => v * .94], ["physics.coyoteTime", v => Math.max(0, v - .03)], ["enemy.speed", v => v * 1.3 + 5]]) }),
+    ["physics.jumpVelocity", v => v * .94], ["physics.coyoteTime", v => Math.max(0, v - .03)], [speedPath(game), v => v * 1.3 + 5]]) }),
   "敵を増やす": (game, schema, { engine }) => {
     const H = engine.H, W = engine.W, row = H - 3, cs = [];
     if (row < 0) return null;
@@ -91,5 +101,12 @@ const ASSET = {
   },
 };
 
-export const SUGGESTION_GROUPS = [["ゲーム性", GAME], ["カメラ・表示", CAMERA], ["アセット", ASSET]];
+/* ---------- ステータス(体力・残機・能力) ---------- */
+const STATUS = {
+  "体力を3にする": (game, schema) => ({ title: "体力を3にする", ops: ops([setOp(schema, game, "player.hp", 3)]), message: "体力はすでに3以上です(または、この形式には体力の設定がありません)。" }),
+  "残機を3にする": (game, schema) => ({ title: "残機を3にする", ops: ops([setOp(schema, game, "player.lives", 3)]), message: "残機はすでに3です(または、この形式には残機の設定がありません)。" }),
+  "二段ジャンプを有効にする": (game, schema) => ({ title: "二段ジャンプを有効にする", ops: ops([setOp(schema, game, "player.doubleJump", true)]), message: "二段ジャンプはすでに有効です(または、この形式にはありません)。" }),
+};
+
+export const SUGGESTION_GROUPS = [["ゲーム性", GAME], ["ステータス", STATUS], ["カメラ・表示", CAMERA], ["アセット", ASSET]];
 export { matchClip, pickAsset };
